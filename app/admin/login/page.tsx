@@ -42,7 +42,8 @@ function AdminLoginPageContent() {
 
   async function handleGoogleLogin() {
     setError("");
-    const redirectTo = `${window.location.origin}/admin/auth/callback`;
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const redirectTo = `${origin}/admin/auth/callback`;
 
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",

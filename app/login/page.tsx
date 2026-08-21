@@ -191,7 +191,8 @@ function CustomerLoginPageContent() {
   async function handleGoogleLogin() {
     setErrorMessage("");
     setGoogleLoading(true);
-    const redirectTo = `${window.location.origin}/auth/callback?mode=${authMode}&next=${encodeURIComponent(redirectUrl)}`;
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const redirectTo = `${origin}/auth/callback?mode=${authMode}&next=${encodeURIComponent(redirectUrl)}`;
 
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
