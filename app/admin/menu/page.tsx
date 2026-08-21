@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
+import Link from "next/link";
 import {
   Utensils,
   Plus,
@@ -15,10 +16,12 @@ import {
   Layers,
   Sparkles,
   AlertTriangle,
+  Sliders,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase, type Category, type MenuItem } from "@/lib/supabase";
 import { ImageWithFallback } from "@/components/ImageWithFallback";
+import { MenuImagePicker } from "@/components/MenuImagePicker";
 
 export default function AdminMenuPage() {
   const router = useRouter();
@@ -49,8 +52,41 @@ export default function AdminMenuPage() {
   const [newCatName, setNewCatName] = useState("");
   const [submittingCat, setSubmittingCat] = useState(false);
 
+  // Auto Description Generator State
+  const [generatingDesc, setGeneratingDesc] = useState(false);
+
+  async function handleGenerateDesc(
+    dishName: string,
+    isVeg: boolean,
+    setDesc: (d: string) => void
+  ) {
+    if (!dishName || dishName.trim().length < 2) {
+      toast.error("Please enter a Dish Name first");
+      return;
+    }
+    setGeneratingDesc(true);
+    try {
+      const res = await fetch("/api/admin/menu/generate-description", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dishName, isVeg }),
+      });
+      const data = await res.json();
+      if (res.ok && data.description) {
+        setDesc(data.description);
+        toast.success("Appetizing description generated! ✨");
+      } else {
+        toast.error(data.error || "Failed to generate description");
+      }
+    } catch (e) {
+      toast.error("Error generating description");
+    } finally {
+      setGeneratingDesc(false);
+    }
+  }
+
   useEffect(() => {
-    async function verifyOwnerAccess() {
+    async function verifyMenuAccess() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -60,24 +96,24 @@ export default function AdminMenuPage() {
         return;
       }
 
-      const { data: staffRow } = await supabase
-        .from("staff")
+      const { data: profileRow } = await supabase
+        .from("profiles")
         .select("role")
         .eq("id", user.id)
         .single();
 
-      if (staffRow?.role !== "owner") {
-        toast.error("Only the cafe owner can manage the menu");
+      if (!profileRow || !["owner", "manager"].includes(profileRow.role)) {
+        toast.error("Only owner and manager can manage the menu");
         router.push("/admin/orders");
         return;
       }
 
-      setIsOwner(true);
+      setIsOwner(profileRow.role === "owner");
       setChecking(false);
       loadMenuData();
     }
 
-    verifyOwnerAccess();
+    verifyMenuAccess();
   }, [router]);
 
   async function loadMenuData() {
@@ -406,6 +442,14 @@ export default function AdminMenuPage() {
                           </button>
 
                           <div className="flex items-center gap-1">
+                            <Link
+                              href="/admin/customizations"
+                              className="p-1.5 rounded-lg bg-marigold/20 hover:bg-marigold/30 text-pineDark transition cursor-pointer"
+                              title="Manage Customizations (Sizes, Add-ons)"
+                            >
+                              <Sliders className="w-3.5 h-3.5" />
+                            </Link>
+
                             <button
                               onClick={() => setEditingItem(item)}
                               className="p-1.5 rounded-lg bg-stone hover:bg-pine/10 text-pine transition cursor-pointer"
@@ -501,7 +545,18 @@ export default function AdminMenuPage() {
                 </div>
 
                 <div>
-                  <label className="block font-bold text-pine mb-1">Description</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-bold text-pine">Description</label>
+                    <button
+                      type="button"
+                      onClick={() => handleGenerateDesc(newItemName, newItemIsVeg, setNewItemDesc)}
+                      disabled={generatingDesc}
+                      className="text-[10px] font-extrabold text-marigold hover:underline flex items-center gap-1 cursor-pointer transition"
+                    >
+                      <Sparkles className={`w-3 h-3 text-marigold ${generatingDesc ? "animate-spin" : ""}`} />
+                      <span>{generatingDesc ? "Generating…" : "✨ Auto-Generate AI Description"}</span>
+                    </button>
+                  </div>
                   <textarea
                     rows={2}
                     value={newItemDesc}
@@ -511,16 +566,11 @@ export default function AdminMenuPage() {
                   />
                 </div>
 
-                <div>
-                  <label className="block font-bold text-pine mb-1">Image URL</label>
-                  <input
-                    type="url"
-                    value={newItemImage}
-                    onChange={(e) => setNewItemImage(e.target.value)}
-                    placeholder="https://images.unsplash.com/..."
-                    className="w-full border border-pine/20 rounded-xl px-3.5 py-2 bg-stone text-xs"
-                  />
-                </div>
+                <MenuImagePicker
+                  dishName={newItemName}
+                  value={newItemImage}
+                  onChange={(url) => setNewItemImage(url)}
+                />
 
                 <div className="flex items-center justify-between bg-stone/60 p-3 rounded-xl border border-pine/10">
                   <div className="flex items-center gap-2">
@@ -645,7 +695,24 @@ export default function AdminMenuPage() {
                 </div>
 
                 <div>
-                  <label className="block font-bold text-pine mb-1">Description</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-bold text-pine">Description</label>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleGenerateDesc(
+                          editingItem.name,
+                          editingItem.is_veg,
+                          (desc) => setEditingItem({ ...editingItem, description: desc })
+                        )
+                      }
+                      disabled={generatingDesc}
+                      className="text-[10px] font-extrabold text-marigold hover:underline flex items-center gap-1 cursor-pointer transition"
+                    >
+                      <Sparkles className={`w-3 h-3 text-marigold ${generatingDesc ? "animate-spin" : ""}`} />
+                      <span>{generatingDesc ? "Generating…" : "✨ Auto-Generate AI Description"}</span>
+                    </button>
+                  </div>
                   <textarea
                     rows={2}
                     value={editingItem.description || ""}
@@ -656,17 +723,11 @@ export default function AdminMenuPage() {
                   />
                 </div>
 
-                <div>
-                  <label className="block font-bold text-pine mb-1">Image URL</label>
-                  <input
-                    type="text"
-                    value={editingItem.image_url || ""}
-                    onChange={(e) =>
-                      setEditingItem({ ...editingItem, image_url: e.target.value })
-                    }
-                    className="w-full border border-pine/20 rounded-xl px-3.5 py-2 bg-stone text-xs"
-                  />
-                </div>
+                <MenuImagePicker
+                  dishName={editingItem.name}
+                  value={editingItem.image_url || ""}
+                  onChange={(url) => setEditingItem({ ...editingItem, image_url: url })}
+                />
 
                 <div className="flex items-center justify-between bg-stone/60 p-3 rounded-xl border border-pine/10">
                   <div className="flex items-center gap-2">

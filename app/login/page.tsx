@@ -17,10 +17,11 @@ import {
   MapPin,
   Loader2,
 } from "lucide-react";
+import { Suspense } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 
-export default function CustomerLoginPage() {
+function CustomerLoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -61,15 +62,15 @@ export default function CustomerLoginPage() {
   // Handle session check and database registration verification
   async function handleSessionVerification(user: any, currentMode: "signin" | "register") {
     try {
-      // Query the customers table for this user's ID
-      const { data: customerRow } = await supabase
-        .from("customers")
+      // Query the profiles table for this user's ID
+      const { data: profileRow } = await supabase
+        .from("profiles")
         .select("*")
         .eq("id", user.id)
         .single();
 
-      // Case 1: User tries to SIGN IN, but NO account exists in customers table
-      if (!customerRow && currentMode === "signin") {
+      // Case 1: User tries to SIGN IN, but NO account exists in profiles table
+      if (!profileRow && currentMode === "signin") {
         await supabase.auth.signOut();
         localStorage.removeItem("celebration_customer_profile");
         setErrorMessage(
@@ -80,8 +81,8 @@ export default function CustomerLoginPage() {
         return;
       }
 
-      // Case 2: User is REGISTERING, create customer row if missing
-      if (!customerRow && currentMode === "register") {
+      // Case 2: User is REGISTERING, create profile row if missing
+      if (!profileRow && currentMode === "register") {
         const displayName =
           name.trim() ||
           user.user_metadata?.full_name ||
@@ -89,21 +90,23 @@ export default function CustomerLoginPage() {
           user.email?.split("@")[0] ||
           "Customer";
 
-        const { error: insertErr } = await supabase.from("customers").insert({
+        const { error: insertErr } = await supabase.from("profiles").insert({
           id: user.id,
-          name: displayName,
+          role: "customer",
+          full_name: displayName,
           email: user.email,
           phone: phone.trim() || null,
+          status: "active",
         });
 
         if (insertErr) {
-          console.warn("Insert customer warning:", insertErr.message);
+          console.warn("Insert profile warning:", insertErr.message);
         }
       }
 
       // Case 3: Customer verified / registered! Save profile and redirect to /
       const displayName =
-        customerRow?.name ||
+        profileRow?.full_name ||
         name.trim() ||
         user.user_metadata?.full_name ||
         user.user_metadata?.name ||
@@ -113,6 +116,7 @@ export default function CustomerLoginPage() {
       const profile = {
         name: displayName,
         email: user.email,
+        phone: profileRow?.phone || phone.trim() || undefined,
         avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture,
         isLoggedIn: true,
       };
@@ -203,12 +207,13 @@ export default function CustomerLoginPage() {
     }
   }
 
-  // Mobile Fast Access (Local Quick Profile)
-  function handlePhoneLogin(e: React.FormEvent) {
+  // Mobile Fast Access (Phone Login with Real Supabase Auth Session)
+  async function handlePhoneLogin(e: React.FormEvent) {
     e.preventDefault();
     setErrorMessage("");
 
-    if (!phone.trim() || phone.length < 10) {
+    const cleanPhone = phone.trim().replace(/\D/g, "");
+    if (!cleanPhone || cleanPhone.length < 10) {
       setErrorMessage("Please enter a valid 10-digit mobile number");
       return;
     }
@@ -221,26 +226,64 @@ export default function CustomerLoginPage() {
     setSubmitting(true);
 
     try {
-      const profileName = name.trim() || "Customer (" + phone.slice(-4) + ")";
+      const syntheticEmail = `phone_${cleanPhone}@celebrationcafe.in`;
+      const syntheticPassword = `phone_${cleanPhone}_pass`;
+      const profileName = name.trim() || "Customer (" + cleanPhone.slice(-4) + ")";
+
+      // 1. Try to sign in to Supabase with synthetic phone credentials
+      let { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: syntheticEmail,
+        password: syntheticPassword,
+      });
+
+      let user = signInData?.user;
+
+      // 2. If user doesn't exist in Supabase auth yet, register new user
+      if (signInError || !user) {
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: syntheticEmail,
+          password: syntheticPassword,
+          options: {
+            data: { display_name: profileName, phone: cleanPhone },
+          },
+        });
+
+        if (signUpError) {
+          console.warn("Supabase auth signup warning:", signUpError.message);
+        } else {
+          user = signUpData?.user;
+        }
+      }
+
+      // 3. Ensure profile row exists in public.profiles table
+      if (user) {
+        await supabase.from("profiles").upsert({
+          id: user.id,
+          role: "customer",
+          full_name: profileName,
+          email: syntheticEmail,
+          phone: cleanPhone,
+          status: "active",
+        });
+      }
+
       const profile = {
         name: profileName,
-        phone: phone.trim(),
+        phone: cleanPhone,
         address: address.trim() || "Hamirpur, HP",
         isLoggedIn: true,
         loggedInAt: new Date().toISOString(),
       };
 
       localStorage.setItem("celebration_customer_profile", JSON.stringify(profile));
-      toast.success(`Welcome ${profileName}!`, {
-        description: "Your details have been saved for quick ordering.",
-      });
+      toast.success(`Welcome ${profileName}!`);
 
       setTimeout(() => {
         router.push(redirectUrl);
       }, 400);
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to save session");
+    } catch (err: any) {
+      console.error("Phone login error:", err);
+      toast.error("Failed to authenticate user session");
     } finally {
       setSubmitting(false);
     }
@@ -670,5 +713,22 @@ export default function CustomerLoginPage() {
         © {new Date().getFullYear()} Celebration Food Cafe, Hamirpur. All rights reserved.
       </footer>
     </div>
+  );
+}
+
+export default function CustomerLoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#121110] text-stone flex flex-col items-center justify-center p-6">
+          <div className="flex items-center justify-center gap-2 text-marigold font-bold text-sm">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span>Loading Login Page…</span>
+          </div>
+        </div>
+      }
+    >
+      <CustomerLoginPageContent />
+    </Suspense>
   );
 }

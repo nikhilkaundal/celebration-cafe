@@ -73,11 +73,23 @@ const STEPS: StepConfig[] = [
     icon: Clock,
     color: "text-amber-400 border-amber-500/50 bg-amber-500/10",
     glowBg: "bg-amber-500/20",
+    eta: "Est. 25-35 mins",
+  },
+  {
+    id: "confirmed",
+    stepIndex: 2,
+    label: "Order Confirmed",
+    sublabel: "Restaurant accepted your order ☕",
+    dineInSublabel: "Table order confirmed by manager",
+    pickupSublabel: "Takeaway order accepted",
+    icon: PackageCheck,
+    color: "text-emerald-400 border-emerald-500/50 bg-emerald-500/10",
+    glowBg: "bg-emerald-500/20",
     eta: "Est. 20-30 mins",
   },
   {
     id: "preparing",
-    stepIndex: 2,
+    stepIndex: 3,
     label: "Preparing Meal",
     sublabel: "Chef is preparing your fresh order in kitchen 🍳",
     dineInSublabel: "Chef is cooking your hot meal 🍳",
@@ -89,7 +101,7 @@ const STEPS: StepConfig[] = [
   },
   {
     id: "ready",
-    stepIndex: 3,
+    stepIndex: 4,
     label: "Food Ready",
     sublabel: "Order packed hot & fresh, ready for dispatch 📦",
     dineInSublabel: "Food ready! Serving to your table shortly 🍽️",
@@ -101,7 +113,7 @@ const STEPS: StepConfig[] = [
   },
   {
     id: "out-for-delivery",
-    stepIndex: 4,
+    stepIndex: 5,
     label: "Out for Delivery",
     sublabel: "Delivery partner is on the way to your address 🛵",
     dineInSublabel: "Serving hot & fresh at your table 🍽️",
@@ -113,7 +125,7 @@ const STEPS: StepConfig[] = [
   },
   {
     id: "completed",
-    stepIndex: 5,
+    stepIndex: 6,
     label: "Delivered",
     sublabel: "Order delivered! Enjoy your meal 🎉",
     dineInSublabel: "Served & completed! Enjoy your meal 🎉",
@@ -127,10 +139,11 @@ const STEPS: StepConfig[] = [
 
 const STEP_INDEX_MAP: Record<string, number> = {
   pending: 1,
-  preparing: 2,
-  ready: 3,
-  "out-for-delivery": 4,
-  completed: 5,
+  confirmed: 2,
+  preparing: 3,
+  ready: 4,
+  "out-for-delivery": 5,
+  completed: 6,
   cancelled: 0,
 };
 

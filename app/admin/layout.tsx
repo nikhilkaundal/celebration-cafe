@@ -14,15 +14,20 @@ import {
   Shield,
   Coffee,
   ChevronRight,
+  BarChart3,
+  UserCheck,
+  FileText,
+  Sliders,
+  Ticket,
 } from "lucide-react";
-import { supabase, type Staff } from "@/lib/supabase";
+import { supabase, type Profile, type UserRole } from "@/lib/supabase";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
-  const [currentStaff, setCurrentStaff] = useState<Staff | null>(null);
+  const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // If on login page, skip admin layout wrappers
@@ -44,19 +49,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         return;
       }
 
-      const { data: staffRow, error } = await supabase
-        .from("staff")
+      const { data: profileRow, error } = await supabase
+        .from("profiles")
         .select("*")
         .eq("id", user.id)
         .single();
 
-      if (error || !staffRow) {
-        console.warn("User authenticated but not in staff table:", error);
+      if (
+        error ||
+        !profileRow ||
+        !["owner", "manager", "worker"].includes(profileRow.role) ||
+        profileRow.status !== "active"
+      ) {
+        console.warn("User authenticated but not active staff in profiles table:", error);
         router.push("/admin/login");
         return;
       }
 
-      setCurrentStaff(staffRow as Staff);
+      setCurrentProfile(profileRow as Profile);
       setLoading(false);
     }
 
@@ -83,68 +93,105 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  const isOwner = currentStaff?.role === "owner";
+  const role: UserRole = currentProfile?.role || "worker";
+  const isOwner = role === "owner";
+  const isManager = role === "manager";
 
   const navItems = [
+    {
+      name: "Dashboard",
+      href: "/admin",
+      exact: true,
+      icon: BarChart3,
+      allowedRoles: ["owner"],
+    },
     {
       name: "Live Orders",
       href: "/admin/orders",
       icon: ShoppingBag,
-      ownerOnly: false,
+      allowedRoles: ["owner", "manager", "worker"],
     },
     {
       name: "Menu Items",
       href: "/admin/menu",
       icon: UtensilsCrossed,
-      ownerOnly: true,
+      allowedRoles: ["owner", "manager"],
     },
     {
-      name: "Offers & Coupons",
+      name: "Customizations",
+      href: "/admin/customizations",
+      icon: Sliders,
+      allowedRoles: ["owner", "manager"],
+    },
+    {
+      name: "Coupons",
+      href: "/admin/coupons",
+      icon: Ticket,
+      allowedRoles: ["owner"],
+    },
+    {
+      name: "Offers & Banners",
       href: "/admin/offers",
       icon: Tag,
-      ownerOnly: true,
+      allowedRoles: ["owner"],
+    },
+    {
+      name: "Customers (CRM)",
+      href: "/admin/customers",
+      icon: UserCheck,
+      allowedRoles: ["owner"],
     },
     {
       name: "Staff Members",
       href: "/admin/staff",
       icon: Users,
-      ownerOnly: true,
+      allowedRoles: ["owner"],
+    },
+    {
+      name: "Audit Log",
+      href: "/admin/audit",
+      icon: FileText,
+      allowedRoles: ["owner"],
     },
   ];
+
+  const visibleNavItems = navItems.filter((item) => item.allowedRoles.includes(role));
 
   return (
     <div className="min-h-screen bg-[#FAF7F0] text-[#2A2622] flex flex-col md:flex-row">
       {/* ── Desktop Sidebar Nav ── */}
-      <aside className="hidden md:flex flex-col w-64 bg-[#1F3B2C] text-[#FAF7F0] border-r border-marigold/20 shadow-2xl flex-shrink-0">
+      <aside className="hidden md:flex flex-col w-64 bg-[#1F3B2C] text-[#FAF7F0] border-r border-marigold/20 shadow-2xl flex-shrink-0 sticky top-0 h-screen overflow-hidden">
         {/* Brand Header */}
-        <div className="p-6 border-b border-white/10">
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-2xl bg-marigold/20 border border-marigold/40 flex items-center justify-center text-marigold group-hover:scale-105 transition-transform">
-              <Coffee className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="font-heading font-bold text-base text-[#FAF7F0] leading-tight">
-                Celebration Cafe
-              </h1>
-              <p className="text-[10px] text-marigold uppercase tracking-wider font-extrabold">
-                Admin Operations
-              </p>
-            </div>
+        <div className="p-5 border-b border-white/10 flex items-center gap-3">
+          <Link href="/" className="group inline-block shrink-0">
+            <img
+              src="/images/logos/Short%20logo.svg"
+              alt="Celebration Cafe Logo"
+              className="h-11 w-auto object-contain filter drop-shadow-md group-hover:scale-105 transition-transform"
+            />
           </Link>
+          <div className="min-w-0 flex-1">
+            <h1 className="font-heading font-bold text-sm text-[#FAF7F0] leading-tight truncate">
+              Celebration Cafe
+            </h1>
+            <span className="inline-block mt-1 text-[9px] text-marigold uppercase tracking-[0.15em] font-extrabold bg-marigold/15 border border-marigold/30 px-2 py-0.5 rounded-full shadow-xs">
+              Admin Operations
+            </span>
+          </div>
         </div>
 
         {/* Current Staff User Card */}
-        {currentStaff && (
+        {currentProfile && (
           <div className="mx-4 my-4 p-3.5 bg-white/5 border border-white/10 rounded-2xl flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-marigold text-[#1F3B2C] font-extrabold flex items-center justify-center text-sm shadow-md">
-              {currentStaff.name.charAt(0).toUpperCase()}
+              {currentProfile.full_name.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-[#FAF7F0] truncate">{currentStaff.name}</p>
+              <p className="text-xs font-bold text-[#FAF7F0] truncate">{currentProfile.full_name}</p>
               <div className="flex items-center gap-1 mt-0.5">
                 <Shield className="w-3 h-3 text-marigold" />
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-marigold">
-                  {currentStaff.role}
+                  {currentProfile.role}
                 </span>
               </div>
             </div>
@@ -152,17 +199,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         )}
 
         {/* Navigation Links */}
-        <nav className="flex-1 px-4 space-y-1.5 py-2">
-          {navItems.map((item) => {
-            if (item.ownerOnly && !isOwner) return null;
+        <nav className="flex-1 px-4 space-y-1 py-2 overflow-y-auto">
+          {visibleNavItems.map((item) => {
             const Icon = item.icon;
-            const active = pathname === item.href || pathname.startsWith(item.href + "/");
+            const active = item.exact
+              ? pathname === item.href
+              : pathname === item.href || pathname.startsWith(item.href + "/");
 
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-bold transition-all ${
+                className={`flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all ${
                   active
                     ? "bg-marigold text-pineDark shadow-lg font-extrabold"
                     : "text-[#FAF7F0]/80 hover:bg-white/10 hover:text-[#FAF7F0]"
@@ -193,9 +241,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* ── Mobile Topbar & Drawer ── */}
       <div className="md:hidden bg-[#1F3B2C] text-[#FAF7F0] border-b border-marigold/20 px-4 py-3 sticky top-0 z-40 flex items-center justify-between shadow-md">
         <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-marigold/20 border border-marigold/40 flex items-center justify-center text-marigold">
-            <Coffee className="w-4 h-4" />
-          </div>
+          <img
+            src="/images/logos/Short%20logo.svg"
+            alt="Celebration Cafe Logo"
+            className="h-8 w-auto object-contain filter drop-shadow-md shrink-0"
+          />
           <div>
             <h1 className="font-heading font-bold text-sm text-[#FAF7F0]">Celebration Cafe</h1>
             <p className="text-[9px] text-marigold uppercase tracking-wider font-bold">Admin</p>
@@ -203,9 +253,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </Link>
 
         <div className="flex items-center gap-2">
-          {currentStaff && (
+          {currentProfile && (
             <span className="text-[10px] font-extrabold bg-marigold text-pineDark px-2 py-0.5 rounded-full uppercase">
-              {currentStaff.role}
+              {currentProfile.role}
             </span>
           )}
           <button
@@ -220,10 +270,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
         <div className="md:hidden bg-[#1F3B2C] border-b border-white/10 px-4 py-4 space-y-2 sticky top-[57px] z-30 shadow-2xl">
-          {navItems.map((item) => {
-            if (item.ownerOnly && !isOwner) return null;
+          {visibleNavItems.map((item) => {
             const Icon = item.icon;
-            const active = pathname === item.href;
+            const active = item.exact
+              ? pathname === item.href
+              : pathname === item.href || pathname.startsWith(item.href + "/");
 
             return (
               <Link

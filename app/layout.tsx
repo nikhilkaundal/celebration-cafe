@@ -19,13 +19,22 @@ export const metadata: Metadata = {
   title: "Celebration Food Cafe | Hamirpur",
   description: "Order online from Celebration Food Cafe, Hamirpur. Dine-in, pickup or delivery.",
   icons: {
-    icon: "/images/logos/logo.svg",
+    icon: "/images/logos/Short%20logo.svg",
+    apple: "/images/logos/Short%20logo.svg",
   },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${fraunces.variable} ${inter.variable}`}>
+      <head>
+        <link
+          rel="stylesheet"
+          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossOrigin=""
+        />
+      </head>
       <body className="font-body">
         <CartProvider>
           {children}
