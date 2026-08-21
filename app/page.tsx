@@ -21,9 +21,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { supabase, type Category, type MenuItem, type OrderType } from "@/lib/supabase";
+import { supabase, type Category, type MenuItem, type OrderType, type ItemCustomization } from "@/lib/supabase";
 import { useCart, getLineKey } from "@/lib/cart-context";
 import CustomerUserMenu from "@/components/CustomerUserMenu";
+import { LocationAddressSelector } from "@/components/LocationAddressSelector";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -219,6 +220,9 @@ function ItemDetailModal({
   onClose: () => void;
   onAdd: (item: MenuItem, qty: number, size?: string, extras?: string[], unitPrice?: number) => void;
 }) {
+  const [dbGroups, setDbGroups] = useState<ItemCustomization[]>([]);
+  const [dbSelections, setDbSelections] = useState<Record<string, string[]>>({}); // group_id -> selected option labels
+
   const sizes = item.sizes || (item.name.toLowerCase().includes("coffee") ? DEFAULT_SIZES : undefined);
   const extras = item.extras || DEFAULT_EXTRAS;
 
@@ -227,7 +231,51 @@ function ItemDetailModal({
   const [selectedExtras, setSelectedExtras] = useState<string[]>([]);
   const [qty, setQty] = useState(1);
 
+  // Fetch DB Customizations if any exist
+  useEffect(() => {
+    async function loadDbCustomizations() {
+      try {
+        const { data: groups } = await supabase
+          .from("item_customizations")
+          .select("*, options:customization_options(*)")
+          .eq("menu_item_id", item.id)
+          .order("sort_order");
+
+        if (groups && groups.length > 0) {
+          setDbGroups(groups as ItemCustomization[]);
+          const initialSelections: Record<string, string[]> = {};
+          groups.forEach((g: any) => {
+            if (g.options && g.options.length > 0) {
+              if (g.is_required || g.max_select === 1) {
+                initialSelections[g.id] = [g.options[0].label];
+              } else {
+                initialSelections[g.id] = [];
+              }
+            }
+          });
+          setDbSelections(initialSelections);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    loadDbCustomizations();
+  }, [item.id]);
+
   function computeUnitPrice(): number {
+    if (dbGroups.length > 0) {
+      let extraTotal = 0;
+      dbGroups.forEach((g) => {
+        const selected = dbSelections[g.id] || [];
+        g.options?.forEach((opt: any) => {
+          if (selected.includes(opt.label)) {
+            extraTotal += Number(opt.extra_price || 0);
+          }
+        });
+      });
+      return item.price + extraTotal;
+    }
+
     const sizeExtra = sizes?.find((s) => s.label === selectedSize)?.extra ?? 0;
     const extrasTotal = selectedExtras.reduce((sum, lbl) => {
       return sum + (extras?.find((e) => e.label === lbl)?.price ?? 0);
@@ -245,8 +293,39 @@ function ItemDetailModal({
     );
   }
 
+  function toggleDbOption(groupId: string, optLabel: string, maxSelect: number) {
+    setDbSelections((prev) => {
+      const current = prev[groupId] || [];
+      if (maxSelect === 1) {
+        return { ...prev, [groupId]: [optLabel] };
+      }
+      if (current.includes(optLabel)) {
+        return { ...prev, [groupId]: current.filter((l) => l !== optLabel) };
+      }
+      if (current.length >= maxSelect) {
+        toast.error(`Maximum ${maxSelect} option(s) allowed`);
+        return prev;
+      }
+      return { ...prev, [groupId]: [...current, optLabel] };
+    });
+  }
+
   function handleAdd() {
-    onAdd(item, qty, selectedSize || undefined, selectedExtras, computeUnitPrice());
+    let sizeStr = selectedSize || undefined;
+    let extraList: string[] = [...selectedExtras];
+
+    if (dbGroups.length > 0) {
+      const allSelected: string[] = [];
+      dbGroups.forEach((g) => {
+        const selected = dbSelections[g.id] || [];
+        selected.forEach((lbl) => {
+          allSelected.push(`${g.group_name}: ${lbl}`);
+        });
+      });
+      extraList = allSelected;
+    }
+
+    onAdd(item, qty, sizeStr, extraList, computeUnitPrice());
     toast.success(`Added ${qty}× ${item.name} to cart!`);
     onClose();
   }
@@ -297,65 +376,121 @@ function ItemDetailModal({
             </div>
           </div>
 
-          {/* Size options */}
-          {sizes && sizes.length > 0 && (
-            <div>
-              <p className="text-sm font-semibold text-foreground mb-2.5">Choose Size</p>
-              <div className="flex gap-2">
-                {sizes.map((s) => (
-                  <button
-                    key={s.label}
-                    onClick={() => setSelectedSize(s.label)}
-                    className={`flex-1 py-2.5 px-3 rounded-xl border text-sm font-medium transition-all ${selectedSize === s.label
-                        ? "bg-primary text-primary-foreground border-primary shadow-xs"
-                        : "bg-background border-border text-foreground hover:border-primary/40"
-                      }`}
-                  >
-                    <span className="block">{s.label}</span>
-                    {s.extra > 0 && (
-                      <span className={`block text-xs mt-0.5 ${selectedSize === s.label ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
-                        +₹{s.extra}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* DYNAMIC DB CUSTOMIZATION GROUPS */}
+          {dbGroups.length > 0 ? (
+            <div className="space-y-4">
+              {dbGroups.map((group) => {
+                const selectedLabels = dbSelections[group.id] || [];
 
-          {/* Extras options */}
-          {extras && extras.length > 0 && (
-            <div>
-              <p className="text-sm font-semibold text-foreground mb-2.5">Add Extras</p>
-              <div className="space-y-2">
-                {extras.map((ex) => {
-                  const checked = selectedExtras.includes(ex.label);
-                  return (
-                    <label
-                      key={ex.label}
-                      className="flex items-center justify-between p-3 rounded-xl border border-border cursor-pointer hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${checked ? "bg-primary border-primary" : "border-border"
+                return (
+                  <div key={group.id} className="space-y-2">
+                    <div className="flex items-center justify-between text-sm font-semibold text-foreground">
+                      <span>{group.group_name}</span>
+                      {group.is_required && (
+                        <span className="text-[10px] uppercase font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                          Required
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      {group.options?.map((opt: any) => {
+                        const isSelected = selectedLabels.includes(opt.label);
+
+                        return (
+                          <div
+                            key={opt.id}
+                            onClick={() => toggleDbOption(group.id, opt.label, group.max_select)}
+                            className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${
+                              isSelected
+                                ? "border-primary bg-primary/5 text-foreground shadow-xs font-medium"
+                                : "border-border hover:border-primary/40 text-foreground"
                             }`}
-                        >
-                          {checked && <Check className="w-3 h-3 text-primary-foreground" />}
-                        </div>
-                        <span className="text-sm text-foreground">{ex.label}</span>
-                        <input
-                          type="checkbox"
-                          className="sr-only"
-                          checked={checked}
-                          onChange={() => toggleExtra(ex.label)}
-                        />
-                      </div>
-                      {ex.price > 0 && <span className="text-sm text-muted-foreground">+₹{ex.price}</span>}
-                    </label>
-                  );
-                })}
-              </div>
+                          >
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                  isSelected ? "border-primary bg-primary" : "border-muted-foreground/40"
+                                }`}
+                              >
+                                {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                              </div>
+                              <span className="text-sm">{opt.label}</span>
+                            </div>
+                            <span className="text-xs font-semibold text-muted-foreground">
+                              {opt.extra_price > 0 ? `+₹${opt.extra_price}` : "Free"}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
+          ) : (
+            <>
+              {/* Fallback Static Size options */}
+              {sizes && sizes.length > 0 && (
+                <div>
+                  <p className="text-sm font-semibold text-foreground mb-2.5">Choose Size</p>
+                  <div className="flex gap-2">
+                    {sizes.map((s) => (
+                      <button
+                        key={s.label}
+                        onClick={() => setSelectedSize(s.label)}
+                        className={`flex-1 py-2.5 px-3 rounded-xl border text-sm font-medium transition-all ${selectedSize === s.label
+                            ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                            : "bg-background border-border text-foreground hover:border-primary/40"
+                          }`}
+                      >
+                        <span className="block">{s.label}</span>
+                        {s.extra > 0 && (
+                          <span className={`block text-xs mt-0.5 ${selectedSize === s.label ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+                            +₹{s.extra}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Fallback Static Extras options */}
+              {extras && extras.length > 0 && (
+                <div>
+                  <p className="text-sm font-semibold text-foreground mb-2.5">Add Extras</p>
+                  <div className="space-y-2">
+                    {extras.map((ex) => {
+                      const checked = selectedExtras.includes(ex.label);
+                      return (
+                        <label
+                          key={ex.label}
+                          className="flex items-center justify-between p-3 rounded-xl border border-border cursor-pointer hover:bg-muted/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${checked ? "bg-primary border-primary" : "border-border"
+                                }`}
+                            >
+                              {checked && <Check className="w-3 h-3 text-primary-foreground" />}
+                            </div>
+                            <span className="text-sm text-foreground">{ex.label}</span>
+                            <input
+                              type="checkbox"
+                              className="sr-only"
+                              checked={checked}
+                              onChange={() => toggleExtra(ex.label)}
+                            />
+                          </div>
+                          {ex.price > 0 && <span className="text-sm text-muted-foreground">+₹{ex.price}</span>}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {/* Qty + Add CTA */}
@@ -580,10 +715,9 @@ function Navbar({
             <span className="sr-only">Celebration Food Cafe</span>
           </button>
 
-          <span className="hidden lg:inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wider text-marigold bg-white/5 border border-white/10 px-3 py-1 rounded-full">
-            <MapPin className="w-3 h-3 text-marigold" />
-            Hamirpur, HP
-          </span>
+          <div className="hidden lg:inline-block">
+            <LocationAddressSelector />
+          </div>
         </div>
 
         {/* Desktop Navigation Links */}

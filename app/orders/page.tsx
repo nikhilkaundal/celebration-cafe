@@ -62,6 +62,7 @@ type FilterTab = "all" | "active" | "completed";
 
 const statusConfig: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
   pending: { label: "Pending", color: "text-amber-400", bg: "bg-amber-500/15 border-amber-500/30", icon: Clock },
+  confirmed: { label: "Confirmed", color: "text-emerald-400", bg: "bg-emerald-500/15 border-emerald-500/30", icon: CheckCircle2 },
   preparing: { label: "Preparing", color: "text-blue-400", bg: "bg-blue-500/15 border-blue-500/30", icon: ChefHat },
   ready: { label: "Ready", color: "text-emerald-400", bg: "bg-emerald-500/15 border-emerald-500/30", icon: CheckCircle2 },
   "out-for-delivery": { label: "Out for Delivery", color: "text-purple-400", bg: "bg-purple-500/15 border-purple-500/30", icon: Truck },

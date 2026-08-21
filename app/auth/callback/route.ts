@@ -51,32 +51,34 @@ export async function GET(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (user && user.id) {
-    // Check if customer exists in customers table
-    const { data: existingCustomer } = await supabaseAdmin
-      .from("customers")
+    // Check if profile exists in profiles table
+    const { data: existingProfile } = await supabaseAdmin
+      .from("profiles")
       .select("id")
       .eq("id", user.id)
       .single();
 
-    if (!existingCustomer) {
+    if (!existingProfile) {
       // If user is trying to SIGN IN (not register) and account doesn't exist -> Reject!
       if (mode === "signin") {
         await supabase.auth.signOut();
         return NextResponse.redirect(`${origin}/login?error=not_registered_google`);
       }
 
-      // If mode is REGISTER -> Create new customer row
+      // If mode is REGISTER -> Create new customer profile row
       const customerName =
         user.user_metadata?.full_name ||
         user.user_metadata?.name ||
         user.email?.split("@")[0] ||
         "Customer";
 
-      await supabaseAdmin.from("customers").insert({
+      await supabaseAdmin.from("profiles").insert({
         id: user.id,
-        name: customerName,
+        role: "customer",
+        full_name: customerName,
         email: user.email,
         phone: user.phone || null,
+        status: "active",
       });
     }
   }

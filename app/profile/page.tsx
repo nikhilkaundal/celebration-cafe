@@ -15,22 +15,22 @@ import {
   Edit3,
   X,
   ShoppingBag,
-  ClipboardList,
   LogOut,
   Loader2,
   CheckCircle2,
   Calendar,
   Shield,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
+import { supabase, type Address } from "@/lib/supabase";
 
 interface CustomerData {
   id: string;
   name: string;
   email: string | null;
   phone: string | null;
-  address?: string | null;
   created_at: string;
   avatar_url?: string;
 }
@@ -41,12 +41,23 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [customer, setCustomer] = useState<CustomerData | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarError, setAvatarError] = useState(false);
+
+  // Addresses
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [showAddAddressModal, setShowAddAddressModal] = useState(false);
+  const [addrLabel, setAddrLabel] = useState("Home");
+  const [addrLine1, setAddrLine1] = useState("");
+  const [addrLine2, setAddrLine2] = useState("");
+  const [addrCity, setAddrCity] = useState("Hamirpur");
+  const [addrPincode, setAddrPincode] = useState("177001");
+  const [addrIsDefault, setAddrIsDefault] = useState(false);
+  const [submittingAddr, setSubmittingAddr] = useState(false);
 
   // Editable fields
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
-  const [editAddress, setEditAddress] = useState("");
 
   useEffect(() => {
     async function loadProfile() {
@@ -66,14 +77,12 @@ export default function ProfilePage() {
                 name: parsed.name,
                 email: parsed.email || null,
                 phone: parsed.phone || null,
-                address: parsed.address || null,
                 created_at: parsed.loggedInAt || new Date().toISOString(),
                 avatar_url: parsed.avatar_url,
               });
               setAvatarUrl(parsed.avatar_url || null);
               setEditName(parsed.name);
               setEditPhone(parsed.phone || "");
-              setEditAddress(parsed.address || "");
               setLoading(false);
               return;
             }
@@ -82,9 +91,9 @@ export default function ProfilePage() {
           return;
         }
 
-        // Fetch from customers table
-        const { data: customerRow } = await supabase
-          .from("customers")
+        // Fetch from profiles table
+        const { data: profileRow } = await supabase
+          .from("profiles")
           .select("*")
           .eq("id", user.id)
           .single();
@@ -93,33 +102,33 @@ export default function ProfilePage() {
           user.user_metadata?.avatar_url || user.user_metadata?.picture || null;
         setAvatarUrl(avatar);
 
-        if (customerRow) {
-          setCustomer({ ...customerRow, avatar_url: avatar });
-          setEditName(customerRow.name || "");
-          setEditPhone(customerRow.phone || "");
-          setEditAddress((customerRow as any).address || "");
+        if (profileRow) {
+          setCustomer({
+            id: profileRow.id,
+            name: profileRow.full_name || "",
+            email: profileRow.email,
+            phone: profileRow.phone,
+            created_at: profileRow.created_at,
+            avatar_url: avatar,
+          });
+          setEditName(profileRow.full_name || "");
+          setEditPhone(profileRow.phone || "");
+
+          // Load Saved Addresses
+          loadAddresses(user.id);
         } else {
-          // User exists in auth but not in customers — build from metadata
-          const fallbackCustomer: CustomerData = {
+          setCustomer({
             id: user.id,
-            name:
-              user.user_metadata?.full_name ||
-              user.user_metadata?.name ||
-              user.email?.split("@")[0] ||
-              "Customer",
+            name: user.user_metadata?.full_name || user.email?.split("@")[0] || "Customer",
             email: user.email || null,
             phone: user.phone || null,
             created_at: user.created_at || new Date().toISOString(),
             avatar_url: avatar,
-          };
-          setCustomer(fallbackCustomer);
-          setEditName(fallbackCustomer.name);
-          setEditPhone(fallbackCustomer.phone || "");
-          setEditAddress("");
+          });
+          setEditName(user.user_metadata?.full_name || user.email?.split("@")[0] || "Customer");
         }
       } catch (e) {
         console.error("Profile load error:", e);
-        router.push("/login?redirect=/profile");
       } finally {
         setLoading(false);
       }
@@ -128,351 +137,423 @@ export default function ProfilePage() {
     loadProfile();
   }, [router]);
 
-  async function handleSave(field: string) {
-    setSaving(true);
+  async function loadAddresses(userId: string) {
     try {
-      const updates: Record<string, string | null> = {};
+      const { data } = await supabase
+        .from("addresses")
+        .select("*")
+        .eq("customer_id", userId)
+        .order("is_default", { ascending: false });
 
-      if (field === "name") updates.name = editName.trim();
-      if (field === "phone") updates.phone = editPhone.trim() || null;
+      if (data) setAddresses(data as Address[]);
+    } catch (e) {
+      console.error(e);
+    }
+  }
 
-      if (customer?.id && customer.id !== "local") {
+  async function handleSaveField(field: "name" | "phone") {
+    if (!customer) return;
+    setSaving(true);
+
+    try {
+      if (customer.id !== "local") {
+        const updateObj = field === "name" ? { full_name: editName } : { phone: editPhone };
         const { error } = await supabase
-          .from("customers")
-          .update(updates)
+          .from("profiles")
+          .update(updateObj)
           .eq("id", customer.id);
 
         if (error) {
-          console.warn("Update warning:", error.message);
+          toast.error("Failed to update profile");
+          setSaving(false);
+          return;
         }
       }
 
-      // Sync localStorage
-      const savedProfile = localStorage.getItem("celebration_customer_profile");
-      if (savedProfile) {
-        const parsed = JSON.parse(savedProfile);
-        if (field === "name") parsed.name = editName.trim();
-        if (field === "phone") parsed.phone = editPhone.trim();
-        if (field === "address") parsed.address = editAddress.trim();
-        localStorage.setItem("celebration_customer_profile", JSON.stringify(parsed));
-      }
+      // Update local state & localStorage
+      const updatedCustomer = {
+        ...customer,
+        name: field === "name" ? editName : customer.name,
+        phone: field === "phone" ? editPhone : customer.phone,
+      };
+      setCustomer(updatedCustomer);
 
-      // Update local state
-      if (customer) {
-        const updated = { ...customer };
-        if (field === "name") updated.name = editName.trim();
-        if (field === "phone") updated.phone = editPhone.trim();
-        if (field === "address") (updated as any).address = editAddress.trim();
-        setCustomer(updated);
-      }
+      const localObj = {
+        name: updatedCustomer.name,
+        email: updatedCustomer.email,
+        phone: updatedCustomer.phone,
+        avatar_url: avatarUrl,
+        isLoggedIn: true,
+      };
+      localStorage.setItem("celebration_customer_profile", JSON.stringify(localObj));
 
+      toast.success(`${field === "name" ? "Name" : "Phone"} updated!`);
       setEditingField(null);
-      toast.success("Profile updated!", {
-        description: `Your ${field} has been saved.`,
-      });
     } catch (e) {
       console.error(e);
-      toast.error("Failed to update profile");
+      toast.error("Failed to save profile");
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleLogout() {
+  async function handleAddAddress(e: React.FormEvent) {
+    e.preventDefault();
+    if (!customer || customer.id === "local" || !addrLine1.trim()) return;
+
+    setSubmittingAddr(true);
     try {
-      await supabase.auth.signOut();
-      localStorage.removeItem("celebration_customer_profile");
-      toast.success("Logged out successfully");
-      router.push("/");
+      const newAddr = {
+        customer_id: customer.id,
+        label: addrLabel,
+        line1: addrLine1.trim(),
+        line2: addrLine2.trim() || null,
+        city: addrCity.trim(),
+        pincode: addrPincode.trim(),
+        is_default: addrIsDefault,
+      };
+
+      const { data, error } = await supabase
+        .from("addresses")
+        .insert(newAddr)
+        .select()
+        .single();
+
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success("Delivery address saved!");
+        setShowAddAddressModal(false);
+        setAddrLine1("");
+        setAddrLine2("");
+        loadAddresses(customer.id);
+      }
     } catch (e) {
-      console.error(e);
+      toast.error("Failed to save address");
+    } finally {
+      setSubmittingAddr(false);
     }
   }
 
-  const initial = customer?.name ? customer.name.charAt(0).toUpperCase() : "C";
-
-  function formatDate(dateStr: string) {
+  async function handleDeleteAddress(addrId: string) {
     try {
-      return new Date(dateStr).toLocaleDateString("en-IN", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      });
-    } catch {
-      return "Recently";
+      const { error } = await supabase.from("addresses").delete().eq("id", addrId);
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success("Address deleted");
+        if (customer) loadAddresses(customer.id);
+      }
+    } catch (e) {
+      toast.error("Failed to delete address");
     }
   }
 
-  // Loading skeleton
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    localStorage.removeItem("celebration_customer_profile");
+    toast.success("Logged out successfully");
+    router.push("/");
+  }
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#121110] text-stone flex flex-col items-center justify-center p-6">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-96 rounded-full bg-marigold/15 blur-3xl pointer-events-none" />
-        <div className="text-center space-y-4 z-10">
-          <div className="w-16 h-16 rounded-3xl bg-marigold/20 border border-marigold/40 text-marigold flex items-center justify-center mx-auto shadow-2xl animate-pulse">
-            <User className="w-8 h-8" />
-          </div>
-          <div className="flex items-center justify-center gap-2 text-marigold font-bold text-sm">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            <span>Loading profile…</span>
-          </div>
-        </div>
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 text-foreground">
+        <Loader2 className="w-8 h-8 animate-spin text-primary mb-3" />
+        <p className="text-xs font-semibold text-muted-foreground">Loading Your Profile…</p>
       </div>
     );
   }
 
   if (!customer) return null;
 
-  const profileFields = [
-    {
-      key: "name",
-      label: "Full Name",
-      icon: User,
-      value: customer.name,
-      editValue: editName,
-      setter: setEditName,
-      placeholder: "Your name",
-    },
-    {
-      key: "phone",
-      label: "Phone Number",
-      icon: Phone,
-      value: customer.phone || "Not set",
-      editValue: editPhone,
-      setter: setEditPhone,
-      placeholder: "+91 98765 43210",
-      inputType: "tel",
-    },
-    {
-      key: "address",
-      label: "Default Delivery Address",
-      icon: MapPin,
-      value: (customer as any).address || "Not set",
-      editValue: editAddress,
-      setter: setEditAddress,
-      placeholder: "House No., Ward, Main Bazar, Hamirpur",
-    },
-  ];
+  const initials = customer.name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .substring(0, 2)
+    .toUpperCase();
 
   return (
-    <div className="min-h-screen bg-[#121110] text-stone relative overflow-hidden">
-      {/* Background Glow */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-96 rounded-full bg-marigold/15 blur-3xl pointer-events-none" />
+    <main className="min-h-screen bg-background text-foreground max-w-xl mx-auto px-4 py-8 space-y-6">
+      {/* Back button */}
+      <Link
+        href="/"
+        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground font-medium"
+      >
+        <ChevronLeft className="w-4 h-4" /> Back to Menu
+      </Link>
 
-      {/* Header */}
-      <header className="sticky top-0 z-40 bg-[#121110]/90 backdrop-blur-xl border-b border-white/10">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-          <Link
-            href="/"
-            className="flex items-center gap-2 text-stone/80 hover:text-marigold transition-colors text-xs font-bold uppercase tracking-wider"
-          >
-            <ChevronLeft className="w-4 h-4" />
-            Back
-          </Link>
-          <div className="flex items-center gap-2">
-            <Coffee className="w-5 h-5 text-marigold" />
-            <span className="font-heading font-bold text-stone text-sm">My Profile</span>
-          </div>
-          <div className="w-16" />
+      {/* Header Profile Card */}
+      <div className="bg-card border border-border rounded-3xl p-6 shadow-sm flex items-center gap-4">
+        <div className="relative w-16 h-16 rounded-2xl bg-primary text-primary-foreground font-heading font-extrabold text-xl flex items-center justify-center shrink-0 overflow-hidden shadow-md">
+          {avatarUrl && !avatarError ? (
+            <img
+              src={avatarUrl}
+              alt={customer.name}
+              referrerPolicy="no-referrer"
+              onError={() => setAvatarError(true)}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span>{initials}</span>
+          )}
         </div>
-      </header>
 
-      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8 z-10 relative space-y-6">
-        {/* Profile Hero Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="bg-gradient-to-br from-white/8 to-white/3 border border-white/15 rounded-3xl p-6 sm:p-8 shadow-2xl"
-        >
-          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
-            {/* Avatar */}
-            <div className="relative">
-              {avatarUrl ? (
-                <img
-                  src={avatarUrl}
-                  alt={customer.name}
-                  className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl object-cover border-3 border-marigold shadow-xl"
-                />
-              ) : (
-                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-gradient-to-br from-marigold to-marigoldLight text-pineDark font-extrabold text-3xl flex items-center justify-center shadow-xl">
-                  {initial}
-                </div>
-              )}
-              <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-[#121110] flex items-center justify-center">
-                <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-              </div>
-            </div>
-
-            {/* Info */}
-            <div className="text-center sm:text-left flex-1 min-w-0 space-y-1.5">
-              <h2 className="font-heading text-2xl font-bold text-stone truncate">
-                {customer.name}
-              </h2>
-              {customer.email && (
-                <p className="text-stone/60 text-xs flex items-center gap-1.5 justify-center sm:justify-start">
-                  <Mail className="w-3.5 h-3.5 text-marigold/70" />
-                  <span className="truncate">{customer.email}</span>
-                </p>
-              )}
-              <p className="text-stone/50 text-[11px] flex items-center gap-1.5 justify-center sm:justify-start">
-                <Calendar className="w-3 h-3 text-marigold/60" />
-                <span>Member since {formatDate(customer.created_at)}</span>
-              </p>
-              <div className="inline-flex items-center gap-1.5 bg-green-500/15 text-green-400 text-[10px] font-bold px-2.5 py-1 rounded-full border border-green-500/30 mt-1">
-                <Shield className="w-3 h-3" />
-                <span>Verified Customer</span>
-              </div>
-            </div>
+        <div className="min-w-0 flex-1">
+          <h1 className="font-heading text-xl font-bold text-foreground truncate">{customer.name}</h1>
+          <p className="text-xs text-muted-foreground truncate">{customer.email || "No email linked"}</p>
+          <div className="flex items-center gap-1 mt-1 text-[11px] text-emerald-600 font-semibold">
+            <Shield className="w-3.5 h-3.5" /> Verified Customer Account
           </div>
-        </motion.div>
+        </div>
+      </div>
 
-        {/* Editable Fields */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
-          className="space-y-3"
-        >
-          <h3 className="text-xs font-bold text-stone/60 uppercase tracking-wider px-1">
-            Personal Information
-          </h3>
+      {/* Account Details Box */}
+      <div className="bg-card border border-border rounded-3xl p-6 shadow-sm space-y-4">
+        <h2 className="font-heading text-base font-bold text-foreground border-b border-border pb-3">
+          Account Profile Details
+        </h2>
 
-          {profileFields.map((field) => (
-            <div
-              key={field.key}
-              className="bg-white/5 border border-white/10 rounded-2xl p-4 transition hover:border-white/20"
+        {/* Full Name */}
+        <div className="flex items-center justify-between py-2 border-b border-border/40 text-xs">
+          <div>
+            <span className="text-muted-foreground block text-[10px] uppercase font-bold">Full Name</span>
+            {editingField === "name" ? (
+              <input
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="border border-border rounded-lg px-2 py-1 bg-background text-foreground font-bold mt-1"
+              />
+            ) : (
+              <span className="font-bold text-foreground text-sm">{customer.name}</span>
+            )}
+          </div>
+
+          {editingField === "name" ? (
+            <button
+              onClick={() => handleSaveField("name")}
+              disabled={saving}
+              className="p-2 rounded-xl bg-primary text-primary-foreground font-bold"
             >
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className="w-9 h-9 rounded-xl bg-marigold/15 text-marigold flex items-center justify-center shrink-0">
-                    <field.icon className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[10px] text-stone/50 font-bold uppercase tracking-wider">
-                      {field.label}
-                    </p>
-                    {editingField === field.key ? (
-                      <input
-                        type={field.inputType || "text"}
-                        value={field.editValue}
-                        onChange={(e) => field.setter(e.target.value)}
-                        placeholder={field.placeholder}
-                        autoFocus
-                        className="w-full bg-transparent border-b border-marigold/50 text-stone text-sm font-medium py-1 focus:outline-none focus:border-marigold transition placeholder:text-stone/30"
-                      />
-                    ) : (
-                      <p
-                        className={`text-sm font-medium truncate ${
-                          field.value === "Not set"
-                            ? "text-stone/40 italic"
-                            : "text-stone"
-                        }`}
-                      >
-                        {field.value}
-                      </p>
-                    )}
-                  </div>
-                </div>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            </button>
+          ) : (
+            <button onClick={() => setEditingField("name")} className="text-primary hover:underline font-semibold">
+              Edit
+            </button>
+          )}
+        </div>
 
-                {/* Edit / Save / Cancel buttons */}
-                {editingField === field.key ? (
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      onClick={() => handleSave(field.key)}
-                      disabled={saving}
-                      className="w-8 h-8 rounded-xl bg-green-500/20 text-green-400 hover:bg-green-500/30 flex items-center justify-center transition cursor-pointer"
-                    >
-                      {saving ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Save className="w-3.5 h-3.5" />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => setEditingField(null)}
-                      className="w-8 h-8 rounded-xl bg-white/10 text-stone/60 hover:bg-white/20 flex items-center justify-center transition cursor-pointer"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setEditingField(field.key)}
-                    className="w-8 h-8 rounded-xl bg-white/10 text-marigold/80 hover:bg-marigold/20 hover:text-marigold flex items-center justify-center transition cursor-pointer shrink-0"
-                  >
-                    <Edit3 className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </motion.div>
+        {/* Phone Number */}
+        <div className="flex items-center justify-between py-2 border-b border-border/40 text-xs">
+          <div>
+            <span className="text-muted-foreground block text-[10px] uppercase font-bold">Phone Number</span>
+            {editingField === "phone" ? (
+              <input
+                type="tel"
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                className="border border-border rounded-lg px-2 py-1 bg-background text-foreground font-bold mt-1"
+              />
+            ) : (
+              <span className="font-bold text-foreground text-sm">{customer.phone || "Not set"}</span>
+            )}
+          </div>
 
-        {/* Quick Links */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.2 }}
-          className="space-y-3"
-        >
-          <h3 className="text-xs font-bold text-stone/60 uppercase tracking-wider px-1">
-            Quick Links
-          </h3>
+          {editingField === "phone" ? (
+            <button
+              onClick={() => handleSaveField("phone")}
+              disabled={saving}
+              className="p-2 rounded-xl bg-primary text-primary-foreground font-bold"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            </button>
+          ) : (
+            <button onClick={() => setEditingField("phone")} className="text-primary hover:underline font-semibold">
+              Edit
+            </button>
+          )}
+        </div>
+      </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {[
-              {
-                href: "/orders",
-                label: "My Orders",
-                description: "View order history & reorder",
-                icon: ClipboardList,
-                color: "text-blue-400",
-                bg: "bg-blue-500/15",
-              },
-              {
-                href: "/order",
-                label: "Order Food",
-                description: "Browse menu & place order",
-                icon: ShoppingBag,
-                color: "text-marigold",
-                bg: "bg-marigold/15",
-              },
-            ].map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="flex items-center gap-3.5 bg-white/5 border border-white/10 rounded-2xl p-4 hover:border-marigold/40 hover:bg-white/8 transition group"
+      {/* Saved Delivery Addresses Section */}
+      <div className="bg-card border border-border rounded-3xl p-6 shadow-sm space-y-4">
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <h2 className="font-heading text-base font-bold text-foreground flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-primary" /> Saved Delivery Addresses
+          </h2>
+
+          {customer.id !== "local" && (
+            <button
+              onClick={() => setShowAddAddressModal(true)}
+              className="px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-bold flex items-center gap-1 cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add New
+            </button>
+          )}
+        </div>
+
+        {addresses.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-2">
+            No saved addresses found. Add a home or office address for fast checkout!
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {addresses.map((addr) => (
+              <div
+                key={addr.id}
+                className="p-3.5 bg-muted/40 rounded-2xl border border-border flex items-center justify-between gap-3 text-xs"
               >
-                <div
-                  className={`w-10 h-10 rounded-xl ${link.bg} ${link.color} flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform`}
+                <div className="space-y-0.5">
+                  <p className="font-bold text-foreground flex items-center gap-1.5">
+                    <span>{addr.label}</span>
+                    {addr.is_default && (
+                      <span className="text-[9px] font-extrabold uppercase bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                        Default
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-muted-foreground">{addr.line1}{addr.line2 ? `, ${addr.line2}` : ""}, {addr.city}</p>
+                </div>
+
+                <button
+                  onClick={() => handleDeleteAddress(addr.id)}
+                  className="text-red-500 hover:text-red-700 p-1 cursor-pointer"
+                  title="Delete address"
                 >
-                  <link.icon className="w-5 h-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold text-stone">{link.label}</p>
-                  <p className="text-[10px] text-stone/50">{link.description}</p>
-                </div>
-              </Link>
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             ))}
           </div>
-        </motion.div>
+        )}
+      </div>
 
-        {/* Logout */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.3 }}
+      {/* Links & Actions */}
+      <div className="space-y-3">
+        <Link
+          href="/orders"
+          className="w-full bg-card border border-border hover:border-primary/40 p-4 rounded-2xl font-semibold text-xs flex items-center justify-between transition shadow-xs"
         >
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2.5 bg-red-500/10 border border-red-500/20 text-red-300 hover:bg-red-500/20 font-bold py-3.5 rounded-2xl transition cursor-pointer text-xs"
-          >
-            <LogOut className="w-4 h-4 text-red-400" />
-            <span>Sign Out of Your Account</span>
-          </button>
-        </motion.div>
-      </main>
-    </div>
+          <div className="flex items-center gap-3">
+            <ShoppingBag className="w-4 h-4 text-primary" />
+            <span>View My Past Orders & Live Tracker</span>
+          </div>
+          <ChevronLeft className="w-4 h-4 rotate-180 text-muted-foreground" />
+        </Link>
+
+        <button
+          onClick={handleLogout}
+          className="w-full bg-red-500/10 text-red-600 hover:bg-red-500/20 border border-red-500/30 p-4 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+        >
+          <LogOut className="w-4 h-4" /> Log Out Account
+        </button>
+      </div>
+
+      {/* Modal: Add Address */}
+      {showAddAddressModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="font-heading text-lg font-bold text-foreground">Add New Delivery Address</h3>
+              <button onClick={() => setShowAddAddressModal(false)}>
+                <X className="w-5 h-5 text-muted-foreground" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddAddress} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-foreground mb-1">Address Label</label>
+                <select
+                  value={addrLabel}
+                  onChange={(e) => setAddrLabel(e.target.value)}
+                  className="w-full border border-border rounded-xl px-3 py-2 bg-background text-xs font-semibold"
+                >
+                  <option value="Home">Home</option>
+                  <option value="Office">Office</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-foreground mb-1">House No & Street *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. H.No 45, Near Bus Stand"
+                  value={addrLine1}
+                  onChange={(e) => setAddrLine1(e.target.value)}
+                  className="w-full border border-border rounded-xl px-3 py-2 bg-background text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-foreground mb-1">Landmark / Area</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Near Cafe Celebration"
+                  value={addrLine2}
+                  onChange={(e) => setAddrLine2(e.target.value)}
+                  className="w-full border border-border rounded-xl px-3 py-2 bg-background text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block font-bold text-foreground mb-1">City</label>
+                  <input
+                    type="text"
+                    value={addrCity}
+                    onChange={(e) => setAddrCity(e.target.value)}
+                    className="w-full border border-border rounded-xl px-3 py-2 bg-background text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-foreground mb-1">Pincode</label>
+                  <input
+                    type="text"
+                    value={addrPincode}
+                    onChange={(e) => setAddrPincode(e.target.value)}
+                    className="w-full border border-border rounded-xl px-3 py-2 bg-background text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="set_default_addr"
+                  checked={addrIsDefault}
+                  onChange={(e) => setAddrIsDefault(e.target.checked)}
+                  className="rounded text-primary focus:ring-primary cursor-pointer"
+                />
+                <label htmlFor="set_default_addr" className="font-bold text-foreground text-xs cursor-pointer">
+                  Set as Default Delivery Address
+                </label>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddAddressModal(false)}
+                  className="px-4 py-2 rounded-xl border border-border text-xs font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingAddr}
+                  className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold shadow-md cursor-pointer"
+                >
+                  {submittingAddr ? "Saving…" : "Save Address"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </main>
   );
 }

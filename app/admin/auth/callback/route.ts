@@ -53,15 +53,23 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/admin/login?error=not_staff`);
   }
 
-  // 1. Check if user already exists in staff table
-  const { data: existingStaff } = await supabaseAdmin
-    .from("staff")
+  // 1. Check if user already exists in profiles table as staff
+  const { data: existingProfile } = await supabaseAdmin
+    .from("profiles")
     .select("*")
     .eq("id", user.id)
     .single();
 
-  if (existingStaff) {
-    return response;
+  if (existingProfile) {
+    if (
+      ["owner", "manager", "worker"].includes(existingProfile.role) &&
+      existingProfile.status === "active"
+    ) {
+      return response;
+    }
+    // Profile exists but is not staff or is deactivated
+    await supabase.auth.signOut();
+    return NextResponse.redirect(`${origin}/admin/login?error=not_staff`);
   }
 
   // 2. Check if user email was pre-registered in staff_invites table
@@ -72,20 +80,22 @@ export async function GET(request: NextRequest) {
     .single();
 
   if (invite) {
-    // Automatically create staff row from the pre-invited email & name
-    const { error: staffInsertErr } = await supabaseAdmin.from("staff").insert({
+    // Automatically create profiles row from the pre-invited email & name
+    const role = invite.role === "employee" ? "worker" : invite.role || "worker";
+    const { error: profileInsertErr } = await supabaseAdmin.from("profiles").insert({
       id: user.id,
-      name: invite.name || user.user_metadata?.full_name || user.email.split("@")[0],
+      role: role,
+      full_name: invite.name || user.user_metadata?.full_name || user.email.split("@")[0],
       email: user.email,
-      role: invite.role || "employee",
+      status: "active",
     });
 
-    if (!staffInsertErr) {
+    if (!profileInsertErr) {
       // Remove invite record after successful conversion
       await supabaseAdmin.from("staff_invites").delete().eq("id", invite.id);
       return response;
     }
-    console.error("Error converting invite to staff:", staffInsertErr);
+    console.error("Error converting invite to staff profile:", profileInsertErr);
   }
 
   // 3. User is not registered as staff and has no active invite -> Sign out & redirect with error

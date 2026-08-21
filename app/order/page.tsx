@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import Link from "next/link";
 import {
@@ -29,6 +29,7 @@ import {
   MessageSquare,
   RotateCcw,
   History,
+  Clock,
   Sparkles,
   RefreshCw,
   TrendingUp,
@@ -37,7 +38,9 @@ import { toast } from "sonner";
 import { supabase, type MenuItem, type Category } from "@/lib/supabase";
 import { useCart, getLineKey } from "@/lib/cart-context";
 import CustomerUserMenu from "@/components/CustomerUserMenu";
+import OfferBannerCarousel from "@/components/OfferBannerCarousel";
 import { ImageWithFallback } from "@/components/ImageWithFallback";
+import { LocationAddressSelector } from "@/components/LocationAddressSelector";
 
 // ── Types for Past Orders & Reordering ──────────────────────────────────────────
 
@@ -60,293 +63,6 @@ export type PastOrder = {
   total_amount: number;
   items: PastOrderItem[];
 };
-
-const DEFAULT_PAST_ORDERS: PastOrder[] = [
-  {
-    id: "ORD-984210",
-    date: "2 days ago",
-    order_type: "delivery",
-    total_amount: 329,
-    items: [
-      {
-        item_id: "ord-8",
-        name: "Special Paneer Butter Masala Thali",
-        quantity: 1,
-        price: 180,
-        photo: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&h=600&fit=crop&auto=format&q=80",
-        spiceLevel: "Medium",
-      },
-      {
-        item_id: "ord-6",
-        name: "18-Hour Slow-Steeped Cold Brew Latte",
-        quantity: 1,
-        price: 149,
-        photo: "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=800&h=600&fit=crop&auto=format&q=80",
-      },
-    ],
-  },
-  {
-    id: "ORD-871402",
-    date: "5 days ago",
-    order_type: "dine-in",
-    total_amount: 349,
-    items: [
-      {
-        item_id: "ord-1",
-        name: "Artisan Tandoori Paneer Pizza",
-        quantity: 1,
-        price: 349,
-        size: "Medium (10 inch)",
-        photo: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=800&h=600&fit=crop&auto=format&q=80",
-      },
-    ],
-  },
-];
-
-// ── Default Categories & Menu Items ────────────────────────────────────────────
-
-const CATEGORIES: Category[] = [
-  { id: "cat-pizza", name: "Wood-Fired Pizza", display_order: 1 },
-  { id: "cat-burger", name: "Gourmet Burgers", display_order: 2 },
-  { id: "cat-cakes", name: "Celebration Cakes", display_order: 3 },
-  { id: "cat-bev", name: "Specialty Coffee & Teas", display_order: 4 },
-  { id: "cat-mls", name: "Thalis & Meals", display_order: 5 },
-];
-
-const PROMO_OFFERS = [
-  {
-    id: "offer-1",
-    badge: "20% OFF",
-    icon: Percent,
-    title: "Flat 20% OFF Above ₹499",
-    subtitle: "Valid on all food orders across Hamirpur",
-    code: "CELEB20",
-    border: "border-marigold/50",
-    badgeBg: "bg-marigold text-pineDark",
-    accentGlow: "bg-marigold/10",
-  },
-  {
-    id: "offer-2",
-    badge: "FREE DELIVERY",
-    icon: Truck,
-    title: "Free Doorstep Delivery",
-    subtitle: "Zero delivery fees on orders above ₹199 today",
-    code: "FREEDEL",
-    border: "border-emerald-500/50",
-    badgeBg: "bg-emerald-600 text-white",
-    accentGlow: "bg-emerald-500/10",
-  },
-  {
-    id: "offer-3",
-    badge: "₹100 OFF CAKES",
-    icon: Cake,
-    title: "₹100 OFF Bakery Cakes",
-    subtitle: "Save ₹100 on eggless truffle & fruit cakes",
-    code: "CAKE100",
-    border: "border-rose-500/50",
-    badgeBg: "bg-maroon text-white",
-    accentGlow: "bg-rose-500/10",
-  },
-];
-
-type CustomizationConfig = {
-  sizes?: { name: string; extraPrice: number }[];
-  extras?: { name: string; price: number }[];
-  spices?: string[];
-};
-
-const ITEM_CUSTOMIZATIONS: Record<string, CustomizationConfig> = {
-  "ord-1": {
-    sizes: [
-      { name: "Small (7 inch)", extraPrice: 0 },
-      { name: "Medium (10 inch)", extraPrice: 80 },
-      { name: "Large (12 inch)", extraPrice: 150 },
-    ],
-    extras: [
-      { name: "Extra Mozzarella Cheese", price: 40 },
-      { name: "Garlic Crust Glaze", price: 30 },
-      { name: "Jalapeño Cheese Dip", price: 25 },
-    ],
-    spices: ["Mild", "Medium", "Spicy"],
-  },
-  "ord-2": {
-    sizes: [
-      { name: "Small (7 inch)", extraPrice: 0 },
-      { name: "Medium (10 inch)", extraPrice: 80 },
-      { name: "Large (12 inch)", extraPrice: 150 },
-    ],
-    extras: [
-      { name: "Extra Mozzarella Cheese", price: 40 },
-      { name: "Double Corn & Mushroom", price: 35 },
-      { name: "Jalapeño Cheese Dip", price: 25 },
-    ],
-    spices: ["Mild", "Medium", "Spicy"],
-  },
-  "ord-3": {
-    sizes: [
-      { name: "Single Patty", extraPrice: 0 },
-      { name: "Double Patty Smash", extraPrice: 70 },
-    ],
-    extras: [
-      { name: "Melted Cheddar Cheese", price: 30 },
-      { name: "Crispy Fried Bacon", price: 50 },
-      { name: "Extra Mint Mayo Dip", price: 20 },
-    ],
-    spices: ["Mild", "Medium", "Spicy"],
-  },
-  "ord-4": {
-    sizes: [
-      { name: "Single Patty", extraPrice: 0 },
-      { name: "Double Paneer Slab", extraPrice: 60 },
-    ],
-    extras: [
-      { name: "Melted Cheddar Cheese", price: 30 },
-      { name: "Extra Mint Mayo", price: 20 },
-      { name: "Pickled Jalapeños", price: 20 },
-    ],
-    spices: ["Mild", "Medium", "Spicy"],
-  },
-  "ord-5": {
-    sizes: [
-      { name: "500g (Regular)", extraPrice: 0 },
-      { name: "1 Kg (Large)", extraPrice: 400 },
-    ],
-    extras: [
-      { name: "Candle & Birthday Topper", price: 30 },
-      { name: "Personalized Gift Note", price: 20 },
-      { name: "Extra Belgian Chocolate Drizzle", price: 40 },
-    ],
-  },
-  "ord-6": {
-    sizes: [
-      { name: "Regular (250ml)", extraPrice: 0 },
-      { name: "Large (400ml)", extraPrice: 40 },
-    ],
-    extras: [
-      { name: "Almond Milk Substitute", price: 30 },
-      { name: "Extra Scoop Vanilla Ice Cream", price: 35 },
-    ],
-  },
-  "ord-8": {
-    extras: [
-      { name: "Extra Butter Roti (1 Pc)", price: 15 },
-      { name: "Extra Gulab Jamun (1 Pc)", price: 30 },
-      { name: "Sweet Lassi Glass", price: 50 },
-    ],
-    spices: ["Mild", "Medium", "Spicy"],
-  },
-};
-
-const MENU_ITEMS: (MenuItem & {
-  photo: string;
-  is_highly_reordered?: boolean;
-  reorder_rate?: string;
-  reorder_count?: string;
-})[] = [
-  {
-    id: "ord-1",
-    category_id: "cat-pizza",
-    name: "Artisan Tandoori Paneer Pizza",
-    description: "Marinated paneer tikka, caramelized onions, mint glaze on hand-stretched crust",
-    price: 349,
-    image_url: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=800&h=600&fit=crop&auto=format&q=80",
-    photo: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=800&h=600&fit=crop&auto=format&q=80",
-    is_veg: true,
-    is_available: true,
-    is_highly_reordered: true,
-    reorder_rate: "94% Reordered",
-    reorder_count: "1.2k+ repeat orders",
-  },
-  {
-    id: "ord-2",
-    category_id: "cat-pizza",
-    name: "Farmhouse Loaded Veggie Pizza",
-    description: "Bell peppers, sweet corn, mushrooms, black olives & 100% mozzarella",
-    price: 319,
-    image_url: "https://images.unsplash.com/photo-1534308983496-4fabb1a015ee?w=800&h=600&fit=crop&auto=format&q=80",
-    photo: "https://images.unsplash.com/photo-1534308983496-4fabb1a015ee?w=800&h=600&fit=crop&auto=format&q=80",
-    is_veg: true,
-    is_available: true,
-  },
-  {
-    id: "ord-3",
-    category_id: "cat-burger",
-    name: "Double Smash Gourmet Chicken Burger",
-    description: "Two crispy smash chicken patties, melted cheddar, house coleslaw & brioche bun",
-    price: 279,
-    image_url: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&h=600&fit=crop&auto=format&q=80",
-    photo: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&h=600&fit=crop&auto=format&q=80",
-    is_veg: false,
-    is_available: true,
-    is_highly_reordered: true,
-    reorder_rate: "89% Reordered",
-    reorder_count: "830+ repeat orders",
-  },
-  {
-    id: "ord-4",
-    category_id: "cat-burger",
-    name: "Crispy Paneer Supreme Burger",
-    description: "Crispy fried cottage cheese slab, spicy mint mayonnaise & pickled onions",
-    price: 199,
-    image_url: "https://images.unsplash.com/photo-1550547660-d9450f859349?w=800&h=600&fit=crop&auto=format&q=80",
-    photo: "https://images.unsplash.com/photo-1550547660-d9450f859349?w=800&h=600&fit=crop&auto=format&q=80",
-    is_veg: true,
-    is_available: true,
-  },
-  {
-    id: "ord-5",
-    category_id: "cat-cakes",
-    name: "Belgian Dark Chocolate Truffle Cake (500g)",
-    description: "70% Belgian dark chocolate ganache, eggless moist sponge & edible gold dust",
-    price: 499,
-    image_url: "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800&h=600&fit=crop&auto=format&q=80",
-    photo: "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800&h=600&fit=crop&auto=format&q=80",
-    is_veg: true,
-    is_available: true,
-    is_highly_reordered: true,
-    reorder_rate: "91% Reordered",
-    reorder_count: "980+ repeat orders",
-  },
-  {
-    id: "ord-6",
-    category_id: "cat-bev",
-    name: "18-Hour Slow-Steeped Cold Brew Latte",
-    description: "Single-origin Arabica espresso poured over vanilla ice cream & cold milk",
-    price: 149,
-    image_url: "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=800&h=600&fit=crop&auto=format&q=80",
-    photo: "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=800&h=600&fit=crop&auto=format&q=80",
-    is_veg: true,
-    is_available: true,
-    is_highly_reordered: true,
-    reorder_rate: "87% Reordered",
-    reorder_count: "750+ repeat orders",
-  },
-  {
-    id: "ord-7",
-    category_id: "cat-bev",
-    name: "Special Himachali Masala Chai",
-    description: "Fresh crushed ginger, green cardamom, single-estate tea leaves & warm milk",
-    price: 30,
-    image_url: "https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=800&h=600&fit=crop&auto=format&q=80",
-    photo: "https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=800&h=600&fit=crop&auto=format&q=80",
-    is_veg: true,
-    is_available: true,
-  },
-  {
-    id: "ord-8",
-    category_id: "cat-mls",
-    name: "Special Paneer Butter Masala Thali",
-    description: "Rich paneer butter masala, dal makhani, fragrant rice, 3 butter rotis & sweet",
-    price: 180,
-    image_url: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&h=600&fit=crop&auto=format&q=80",
-    photo: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&h=600&fit=crop&auto=format&q=80",
-    is_veg: true,
-    is_available: true,
-    is_highly_reordered: true,
-    reorder_rate: "92% Reordered",
-    reorder_count: "1.8k+ repeat orders",
-  },
-];
 
 // ── Custom Premium Sort Dropdown Component ──────────────────────────────────
 
@@ -438,8 +154,23 @@ export default function OnlineOrderPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"popular" | "low" | "high">("popular");
 
-  // Past Orders State
-  const [pastOrders, setPastOrders] = useState<PastOrder[]>([]);
+  // Live Database Menu Items & Categories State
+  const [categories, setCategories] = useState<any[]>([]);
+  const [menuItems, setMenuItems] = useState<any[]>([]);
+  const [menuLoading, setMenuLoading] = useState(true);
+  const [customizationGroups, setCustomizationGroups] = useState<any[]>([]);
+  const [loadingCustomizations, setLoadingCustomizations] = useState(false);
+
+  // Dynamic Active Offers State
+  const [promoOffers, setPromoOffers] = useState<any[]>([]);
+
+  // Past Orders State & Auth state
+  const [pastOrders, setPastOrders] = useState<any[]>([]);
+  const [pastOrdersLoading, setPastOrdersLoading] = useState(true);
+  const [isAuthenticatedCustomer, setIsAuthenticatedCustomer] = useState(false);
+
+  // Highly Reordered Dishes State
+  const [topReorderedDishes, setTopReorderedDishes] = useState<any[]>([]);
 
   // Mobile Auto-Swipe Offer state
   const [activeOfferIndex, setActiveOfferIndex] = useState(0);
@@ -463,36 +194,142 @@ export default function OnlineOrderPage() {
   // Added animation micro-interaction state per item
   const [addedItemIds, setAddedItemIds] = useState<Record<string, boolean>>({});
 
-  // Fetch Past Orders & Customer Profile from localStorage on mount
-  useEffect(() => {
+  // Unified Customer Orders & Auth Sync
+  const syncCustomerOrders = useCallback(async (activeSession?: any) => {
     try {
-      const stored = localStorage.getItem("celebration_past_orders");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setPastOrders(parsed);
-        }
+      setPastOrdersLoading(true);
+
+      // 1. Get session from parameter or Supabase SDK
+      let session = activeSession;
+      if (!session) {
+        const { data } = await supabase.auth.getSession();
+        session = data.session;
       }
 
-      const profileStr = localStorage.getItem("celebration_customer_profile");
-      if (profileStr) {
-        const p = JSON.parse(profileStr);
-        if (p.name) setCustomerName(p.name);
+      // 2. Check local profile fallback as secondary source of truth
+      let hasLocalProfile = false;
+      try {
+        const storedProfile = localStorage.getItem("celebration_customer_profile");
+        if (storedProfile) {
+          const parsed = JSON.parse(storedProfile);
+          if (parsed.isLoggedIn || parsed.name) {
+            hasLocalProfile = true;
+            if (parsed.name) setCustomerName(parsed.name);
+          }
+        }
+      } catch (e) {}
+
+      const isAuthed = !!(session?.user || hasLocalProfile);
+      setIsAuthenticatedCustomer(isAuthed);
+
+      if (isAuthed) {
+        const headers: Record<string, string> = {};
+        if (session?.access_token) {
+          headers["Authorization"] = `Bearer ${session.access_token}`;
+        }
+
+        const res = await fetch("/api/customer/orders/recent", { headers });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.authenticated !== undefined) {
+            setIsAuthenticatedCustomer(data.authenticated || isAuthed);
+          }
+          if (data.orders) {
+            setPastOrders(data.orders);
+          }
+        }
+      } else {
+        setPastOrders([]);
       }
     } catch (e) {
+      console.warn("Past orders sync error:", e);
+      setPastOrders([]);
+    } finally {
+      setPastOrdersLoading(false);
     }
-    // Fallback to demo past orders so user experiences the Swiggy-like feature immediately
-    setPastOrders(DEFAULT_PAST_ORDERS);
   }, []);
+
+  // Load Auth Session, Offers, Top Dishes & Live Menu List
+  useEffect(() => {
+    async function loadPublicContent() {
+      // 1. Fetch Live Categories & Menu Items from DB
+      try {
+        setMenuLoading(true);
+        const res = await fetch("/api/menu/public");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.categories) setCategories(data.categories);
+          if (data.menuItems) setMenuItems(data.menuItems);
+        }
+      } catch (e) {
+        console.warn("Public menu fetch warning:", e);
+      } finally {
+        setMenuLoading(false);
+      }
+
+      // 2. Fetch Active Banners
+      try {
+        const res = await fetch("/api/offers/active?location=home_top");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.offers && data.offers.length > 0) {
+            setPromoOffers(data.offers);
+          }
+        }
+      } catch (e) {
+        console.warn("Public offers fetch warning:", e);
+      }
+
+      // 3. Fetch Top Reordered Dishes
+      try {
+        const res = await fetch("/api/menu/top-reordered");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.dishes && data.dishes.length > 0) {
+            setTopReorderedDishes(data.dishes);
+          }
+        }
+      } catch (e) {
+        console.warn("Top reordered dishes fetch warning:", e);
+      }
+    }
+
+    // 1. Load public content & initial customer orders
+    loadPublicContent();
+    syncCustomerOrders();
+
+    // 2. Subscribe to Auth State Changes (fires on login, hydration, logout)
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      syncCustomerOrders(session);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [syncCustomerOrders]);
 
   // Auto Swipe Timer for mobile offers
   useEffect(() => {
-    if (isPaused) return;
+    if (isPaused || promoOffers.length === 0) return;
     const interval = setInterval(() => {
-      setActiveOfferIndex((prev) => (prev + 1) % PROMO_OFFERS.length);
+      setActiveOfferIndex((prev) => (prev + 1) % promoOffers.length);
     }, 3800);
     return () => clearInterval(interval);
-  }, [isPaused]);
+  }, [isPaused, promoOffers.length]);
+
+  // Touch Drag / Swipe Handler for mobile offer cards
+  const handleOfferDragEnd = (_: any, info: any) => {
+    const swipeThreshold = 30;
+    if (info.offset.x < -swipeThreshold) {
+      // Swiped Left -> Next offer
+      setActiveOfferIndex((prev) => (prev + 1) % promoOffers.length);
+    } else if (info.offset.x > swipeThreshold) {
+      // Swiped Right -> Prev offer
+      setActiveOfferIndex((prev) => (prev === 0 ? promoOffers.length - 1 : prev - 1));
+    }
+  };
 
   const handleCopyCode = (code: string) => {
     navigator.clipboard.writeText(code);
@@ -501,29 +338,69 @@ export default function OnlineOrderPage() {
     setTimeout(() => setCopiedCode(null), 2500);
   };
 
-  // Reorder entire past order with one click
-  const handleReorderEntireOrder = (order: PastOrder) => {
+  // Reorder entire past order with live price & availability verification
+  const handleReorderEntireOrder = (pastOrder: any) => {
     let addedCount = 0;
-    order.items.forEach((pastItem) => {
-      const menuItem = MENU_ITEMS.find(
-        (m) => m.id === pastItem.item_id || m.name === pastItem.name
+
+    pastOrder.items.forEach((pastItem: any) => {
+      // Find item in current live menu items
+      const liveItem = menuItems.find(
+        (m: any) => m.id === pastItem.item_id || m.name === pastItem.name
       );
-      if (menuItem) {
-        addItem(
-          menuItem,
-          pastItem.quantity,
-          pastItem.size,
-          pastItem.extras,
-          pastItem.price,
-          pastItem.spiceLevel,
-          pastItem.notes
-        );
-        addedCount += pastItem.quantity;
+
+      if (!liveItem) {
+        toast.error(`"${pastItem.name}" is no longer on the menu`);
+        return;
       }
+
+      if (liveItem.is_available === false) {
+        toast.error(`"${liveItem.name}" is currently out of stock`);
+        return;
+      }
+
+      // Check if price changed
+      const livePrice = Number(liveItem.price);
+      const storedPrice = Number(pastItem.price);
+      if (livePrice !== storedPrice) {
+        toast.info(`"${liveItem.name}" price updated from ₹${storedPrice} to ₹${livePrice}`);
+      }
+
+      // Extract size, extras, spice level
+      let size: string | undefined = undefined;
+      let extras: string[] | undefined = undefined;
+      let spiceLevel: string | undefined = undefined;
+
+      if (Array.isArray(pastItem.customizations)) {
+        pastItem.customizations.forEach((c: any) => {
+          if (typeof c === "string") {
+            if (!extras) extras = [];
+            extras.push(c);
+          } else if (c && typeof c === "object") {
+            const opt = c.option || c.name || "";
+            if (c.group === "Size" || opt.includes("inch")) size = opt;
+            else if (c.group === "Spice" || ["Spicy", "Medium", "Mild"].includes(opt)) spiceLevel = opt;
+            else {
+              if (!extras) extras = [];
+              extras.push(opt);
+            }
+          }
+        });
+      }
+
+      addItem(
+        liveItem,
+        pastItem.quantity || 1,
+        size,
+        extras,
+        livePrice,
+        spiceLevel,
+        pastItem.notes
+      );
+      addedCount += pastItem.quantity || 1;
     });
 
     if (addedCount > 0) {
-      toast.success(`Reordered ${addedCount} item${addedCount > 1 ? "s" : ""} from your past order!`);
+      toast.success(`Reordered ${addedCount} item${addedCount > 1 ? "s" : ""} to your cart!`);
       setCartDrawerOpen(true);
     }
   };
@@ -536,19 +413,108 @@ export default function OnlineOrderPage() {
     toast.info("Past order history cleared.");
   };
 
+  // Helper to get total quantity of a specific menu item in cart
+  const getItemCartQuantity = useCallback(
+    (itemId: string): number => {
+      return lines
+        .filter((line) => line.item.id === itemId)
+        .reduce((sum, line) => sum + line.quantity, 0);
+    },
+    [lines]
+  );
+
+  // Helper to get all cart lines for a specific menu item
+  const getItemCartLines = useCallback(
+    (itemId: string): any[] => {
+      return lines.filter((line) => line.item.id === itemId);
+    },
+    [lines]
+  );
+
+  // Handle increment stepper on menu item card
+  const handleIncrementItem = (item: any) => {
+    if (item.is_available === false) {
+      toast.error(`"${item.name}" is currently out of stock`);
+      return;
+    }
+
+    const itemLines = getItemCartLines(item.id);
+    if (itemLines.length === 0) {
+      handleAddClick(item);
+      return;
+    }
+
+    // Target the most recent cart line for this item
+    const targetLine = itemLines[itemLines.length - 1];
+    const key = getLineKey(
+      targetLine.item,
+      targetLine.size,
+      targetLine.extras,
+      targetLine.spiceLevel,
+      targetLine.notes
+    );
+
+    const newQty = targetLine.quantity + 1;
+    updateQuantity(key, newQty);
+    triggerAddedAnimation(item.id);
+    toast.success(`Updated ${item.name} (${getItemCartQuantity(item.id) + 1} in cart)`);
+  };
+
+  // Handle decrement stepper on menu item card
+  const handleDecrementItem = (item: any) => {
+    const itemLines = getItemCartLines(item.id);
+    if (itemLines.length === 0) return;
+
+    // Target the most recent cart line for this item
+    const targetLine = itemLines[itemLines.length - 1];
+    const key = getLineKey(
+      targetLine.item,
+      targetLine.size,
+      targetLine.extras,
+      targetLine.spiceLevel,
+      targetLine.notes
+    );
+
+    if (targetLine.quantity > 1) {
+      updateQuantity(key, targetLine.quantity - 1);
+      toast.info(`Decreased ${item.name} quantity`);
+    } else {
+      removeItem(key);
+      toast.info(`Removed ${item.name} from cart`);
+    }
+  };
+
   // Open modal or add directly to cart
-  const handleAddClick = (item: MenuItem & { photo: string }) => {
-    const config = ITEM_CUSTOMIZATIONS[item.id];
-    if (config && (config.sizes || config.extras || config.spices)) {
-      // Open customization modal
+  const handleAddClick = async (item: any) => {
+    if (item.is_available === false) {
+      toast.error(`"${item.name}" is currently out of stock`);
+      return;
+    }
+
+    if (item.is_customizable) {
       setCustomizingItem(item);
       setSelectedSizeIndex(0);
       setSelectedExtras([]);
-      setSelectedSpice(config.spices ? config.spices[1] || config.spices[0] : "Medium");
+      setSelectedSpice("Medium");
       setNotes("");
       setModalQty(1);
+      setCustomizationGroups([]);
+      setLoadingCustomizations(true);
+
+      try {
+        const res = await fetch(`/api/menu/customizations?menu_item_id=${item.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.groups) {
+            setCustomizationGroups(data.groups);
+          }
+        }
+      } catch (e) {
+        console.warn("Customizations fetch error:", e);
+      } finally {
+        setLoadingCustomizations(false);
+      }
     } else {
-      // Direct Add to Cart with micro-animation
       triggerAddedAnimation(item.id);
       addItem(item, 1);
       toast.success(`Added ${item.name} to cart`);
@@ -565,43 +531,42 @@ export default function OnlineOrderPage() {
   // Calculate live total inside modal
   const calculateModalTotal = () => {
     if (!customizingItem) return 0;
-    const config = ITEM_CUSTOMIZATIONS[customizingItem.id];
-    let unitPrice = customizingItem.price;
+    let unitPrice = Number(customizingItem.price);
 
-    if (config?.sizes && config.sizes[selectedSizeIndex]) {
-      unitPrice += config.sizes[selectedSizeIndex].extraPrice;
-    }
-    if (config?.extras) {
-      selectedExtras.forEach((extraName) => {
-        const found = config.extras?.find((e) => e.name === extraName);
-        if (found) unitPrice += found.price;
-      });
-    }
+    customizationGroups.forEach((group) => {
+      if (group.options) {
+        group.options.forEach((opt: any) => {
+          if (selectedExtras.includes(opt.name) || selectedExtras.includes(opt.id)) {
+            unitPrice += Number(opt.extraPrice || opt.price || 0);
+          }
+        });
+      }
+    });
+
     return unitPrice * modalQty;
   };
 
   const handleConfirmCustomization = () => {
     if (!customizingItem) return;
-    const config = ITEM_CUSTOMIZATIONS[customizingItem.id];
-    const sizeObj = config?.sizes ? config.sizes[selectedSizeIndex] : undefined;
-    const sizeName = sizeObj ? sizeObj.name : undefined;
 
-    let unitPrice = customizingItem.price;
-    if (sizeObj) unitPrice += sizeObj.extraPrice;
-    if (config?.extras) {
-      selectedExtras.forEach((extraName) => {
-        const found = config.extras?.find((e) => e.name === extraName);
-        if (found) unitPrice += found.price;
-      });
-    }
+    let unitPrice = Number(customizingItem.price);
+    customizationGroups.forEach((group) => {
+      if (group.options) {
+        group.options.forEach((opt: any) => {
+          if (selectedExtras.includes(opt.name) || selectedExtras.includes(opt.id)) {
+            unitPrice += Number(opt.extraPrice || opt.price || 0);
+          }
+        });
+      }
+    });
 
     addItem(
       customizingItem,
       modalQty,
-      sizeName,
+      undefined,
       selectedExtras,
       unitPrice,
-      config?.spices ? selectedSpice : undefined,
+      selectedSpice,
       notes.trim() ? notes.trim() : undefined
     );
 
@@ -617,7 +582,7 @@ export default function OnlineOrderPage() {
   };
 
   // Filtered menu
-  const filtered = MENU_ITEMS.filter((item) => {
+  const filtered = menuItems.filter((item) => {
     if (vegOnly && !item.is_veg) return false;
     if (selectedCat === "highly_reordered" && !item.is_highly_reordered) return false;
     if (selectedCat !== "all" && selectedCat !== "highly_reordered" && item.category_id !== selectedCat)
@@ -631,6 +596,7 @@ export default function OnlineOrderPage() {
     }
     return true;
   }).sort((a, b) => {
+    if (sortBy === "popular") return (b.total_orders || 0) - (a.total_orders || 0);
     if (sortBy === "low") return a.price - b.price;
     if (sortBy === "high") return b.price - a.price;
     return 0;
@@ -650,10 +616,9 @@ export default function OnlineOrderPage() {
               />
               <span className="sr-only">Celebration Cafe</span>
             </Link>
-            <span className="hidden md:inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wider text-marigold bg-white/5 border border-marigold/20 px-3 py-1 rounded-full">
-              <MapPin className="w-3 h-3 text-marigold" />
-              Hamirpur, HP
-            </span>
+            <div className="hidden md:inline-block">
+              <LocationAddressSelector />
+            </div>
           </div>
 
           <div className="flex items-center gap-3 sm:gap-4">
@@ -704,137 +669,15 @@ export default function OnlineOrderPage() {
         </div>
       </section>
 
-      {/* ── Coupon Ticket Offers Section ── */}
-      <section className="max-w-6xl mx-auto px-4 md:px-6 -mt-6 relative z-20">
-        {/* Desktop 3-Column Coupon Grid */}
-        <div className="hidden md:grid grid-cols-3 gap-4">
-          {PROMO_OFFERS.map((offer) => {
-            const IconComponent = offer.icon;
-            return (
-              <motion.div
-                key={offer.id}
-                whileHover={{ y: -3 }}
-                className={`bg-card text-card-foreground border-2 border-dashed ${offer.border} rounded-2xl p-4 sm:p-5 shadow-[0_8px_25px_-5px_rgba(0,0,0,0.06)] hover:shadow-[0_15px_30px_-5px_rgba(0,0,0,0.12)] flex flex-col justify-between h-[155px] relative overflow-hidden group transition-all duration-300`}
-              >
-                <div className={`absolute top-0 right-0 w-24 h-24 rounded-full ${offer.accentGlow} blur-2xl pointer-events-none`} />
+      {/* ── Dynamic Touch-Swipeable Offer Banner Carousel ── */}
+      {promoOffers.length > 0 && (
+        <section className="max-w-6xl mx-auto px-4 md:px-6 -mt-6 relative z-20">
+          <OfferBannerCarousel offers={promoOffers} autoPlayInterval={4500} />
+        </section>
+      )}
 
-                <div className="flex items-center justify-between gap-2 relative z-10">
-                  <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider shadow-xs ${offer.badgeBg}`}>
-                    {offer.badge}
-                  </span>
-                  <IconComponent className="w-4 h-4 text-accent" />
-                </div>
-
-                <div className="space-y-0.5 relative z-10">
-                  <h3 className="font-heading text-sm font-bold text-foreground">
-                    {offer.title}
-                  </h3>
-                  <p className="text-[11px] text-muted-foreground line-clamp-1">
-                    {offer.subtitle}
-                  </p>
-                </div>
-
-                <div className="pt-2 border-t border-border/50 flex items-center justify-between relative z-10">
-                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">COUPON CODE</span>
-                  <button
-                    onClick={() => handleCopyCode(offer.code)}
-                    className="bg-muted hover:bg-accent hover:text-accent-foreground border border-border text-foreground font-mono text-[11px] font-bold px-3 py-1 rounded-xl flex items-center gap-1.5 transition-all shadow-xs active:scale-95 cursor-pointer"
-                  >
-                    {copiedCode === offer.code ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-green-600" />
-                        <span>COPIED</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5 text-accent" />
-                        <span>{offer.code}</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
-
-        {/* Mobile Interactive Auto-Swipe Coupon Card */}
-        <div className="md:hidden">
-          <div
-            onMouseEnter={() => setIsPaused(true)}
-            onMouseLeave={() => setIsPaused(false)}
-            className={`bg-card text-card-foreground border-2 border-dashed ${PROMO_OFFERS[activeOfferIndex].border} rounded-2xl p-4 shadow-md space-y-3 relative overflow-hidden transition-all duration-300`}
-          >
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider ${PROMO_OFFERS[activeOfferIndex].badgeBg}`}>
-                {PROMO_OFFERS[activeOfferIndex].badge}
-              </span>
-
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() =>
-                    setActiveOfferIndex((prev) => (prev === 0 ? PROMO_OFFERS.length - 1 : prev - 1))
-                  }
-                  className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-foreground"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() =>
-                    setActiveOfferIndex((prev) => (prev + 1) % PROMO_OFFERS.length)
-                  }
-                  className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-foreground"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <h3 className="font-heading text-base font-bold text-foreground">
-                {PROMO_OFFERS[activeOfferIndex].title}
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                {PROMO_OFFERS[activeOfferIndex].subtitle}
-              </p>
-            </div>
-
-            <div className="flex items-center justify-between pt-2 border-t border-border">
-              <div className="flex items-center gap-1">
-                {PROMO_OFFERS.map((_, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setActiveOfferIndex(idx)}
-                    className={`h-1.5 rounded-full transition-all ${
-                      activeOfferIndex === idx ? "w-5 bg-accent" : "w-1.5 bg-muted-foreground/30"
-                    }`}
-                  />
-                ))}
-              </div>
-
-              <button
-                onClick={() => handleCopyCode(PROMO_OFFERS[activeOfferIndex].code)}
-                className="bg-accent text-accent-foreground font-mono text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-md cursor-pointer"
-              >
-                {copiedCode === PROMO_OFFERS[activeOfferIndex].code ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-white" />
-                    <span>COPIED!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>USE: {PROMO_OFFERS[activeOfferIndex].code}</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Swiggy-Style "Order Again / Past Orders" Section ── */}
-      {pastOrders.length > 0 && (
+      {/* ── Swiggy-Style "Order Again / Past Orders" Section (ONLY when user has past orders) ── */}
+      {isAuthenticatedCustomer && pastOrders.length > 0 && (
         <section className="max-w-6xl mx-auto px-4 md:px-6 mt-8">
           <div className="bg-gradient-to-r from-[#17241e] via-[#1c2c25] to-[#14201a] text-stone border border-marigold/30 rounded-3xl p-5 md:p-6 shadow-xl relative overflow-hidden">
             <div className="absolute top-0 right-0 w-64 h-64 bg-marigold/10 blur-3xl pointer-events-none rounded-full" />
@@ -848,21 +691,14 @@ export default function OnlineOrderPage() {
                   <h2 className="font-heading text-lg md:text-xl font-bold text-stone flex items-center gap-2">
                     Order Again
                     <span className="text-[10px] font-extrabold bg-marigold text-pineDark px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-xs">
-                      Past Favorites
+                      Your History ({pastOrders.length})
                     </span>
                   </h2>
                   <p className="text-xs text-stone/70">
-                    Repeat your past delicious orders in one tap, just like Swiggy!
+                    Repeat your past delicious orders in one tap!
                   </p>
                 </div>
               </div>
-
-              <button
-                onClick={clearPastOrders}
-                className="text-[11px] text-stone/50 hover:text-stone/90 underline transition-colors cursor-pointer"
-              >
-                Clear History
-              </button>
             </div>
 
             {/* Horizontal Scrollable Past Order Cards */}
@@ -875,8 +711,8 @@ export default function OnlineOrderPage() {
                 >
                   <div className="flex items-center justify-between text-[11px] text-stone/70 border-b border-white/10 pb-2">
                     <span className="font-semibold text-marigold flex items-center gap-1">
-                      <History className="w-3 h-3 text-marigold" />
-                      {pastOrder.date}
+                      <Clock className="w-3 h-3 text-marigold" />
+                      {pastOrder.relative_time || "Recently"}
                     </span>
                     <span className="bg-white/10 px-2 py-0.5 rounded-md font-mono text-[10px] text-stone/80 uppercase">
                       {pastOrder.order_type}
@@ -884,29 +720,32 @@ export default function OnlineOrderPage() {
                   </div>
 
                   {/* List of items inside this past order */}
-                  <div className="space-y-2.5">
-                    {pastOrder.items.map((it, idx) => (
-                      <div key={idx} className="flex items-center gap-3">
-                        {it.photo ? (
-                          <img
-                            src={it.photo}
-                            alt={it.name}
-                            className="w-12 h-12 rounded-xl object-cover border border-white/20 flex-shrink-0"
-                          />
-                        ) : (
-                          <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center text-marigold flex-shrink-0">
-                            <ShoppingBag className="w-5 h-5" />
+                  <div className="space-y-2.5 max-h-40 overflow-y-auto pr-1">
+                    {Array.isArray(pastOrder.items) &&
+                      pastOrder.items.map((it: any, idx: number) => (
+                        <div key={idx} className="flex items-center gap-3">
+                          {it.photo ? (
+                            <img
+                              src={it.photo}
+                              alt={it.name}
+                              className="w-11 h-11 rounded-xl object-cover border border-white/20 flex-shrink-0"
+                            />
+                          ) : (
+                            <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center text-marigold flex-shrink-0">
+                              <ShoppingBag className="w-4 h-4" />
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold text-stone truncate">{it.name}</p>
+                            <p className="text-[10px] text-stone/60">
+                              {it.quantity}x · ₹{Number(it.price) * Number(it.quantity)}
+                              {it.is_available === false && (
+                                <span className="text-rose-400 font-semibold ml-1.5">(Out of stock)</span>
+                              )}
+                            </p>
                           </div>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-bold text-stone truncate">{it.name}</p>
-                          <p className="text-[10px] text-stone/60">
-                            {it.quantity}x · ₹{it.price * it.quantity}
-                            {it.size ? ` · ${it.size}` : ""}
-                          </p>
                         </div>
-                      </div>
-                    ))}
+                      ))}
                   </div>
 
                   {/* Total & Reorder Button */}
@@ -954,7 +793,7 @@ export default function OnlineOrderPage() {
 
         {/* Horizontal Carousel of Highly Reordered Items */}
         <div className="flex gap-4 overflow-x-auto pb-3 pt-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden no-scrollbar">
-          {MENU_ITEMS.filter((i) => i.is_highly_reordered).map((item) => {
+          {(topReorderedDishes.length > 0 ? topReorderedDishes : menuItems.slice(0, 6)).map((item: any) => {
             const isJustAdded = addedItemIds[item.id];
 
             return (
@@ -965,14 +804,14 @@ export default function OnlineOrderPage() {
               >
                 <div className="relative h-36 rounded-xl overflow-hidden bg-muted">
                   <ImageWithFallback
-                    src={item.photo}
+                    src={item.photo || item.image_url}
                     alt={item.name}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
                   {/* Reorder Rate Badge */}
                   <div className="absolute top-2.5 left-2.5 bg-black/80 backdrop-blur-md text-amber-400 font-extrabold text-[10px] px-2.5 py-1 rounded-full flex items-center gap-1 border border-amber-400/40 shadow-md">
                     <Flame className="w-3 h-3 text-orange-400 fill-orange-400" />
-                    <span>{item.reorder_rate || "Highly Reordered"}</span>
+                    <span>{item.reorder_rate || "Popular Dish"}</span>
                   </div>
                 </div>
 
@@ -1004,32 +843,62 @@ export default function OnlineOrderPage() {
                   <div>
                     <p className="text-sm font-bold text-foreground">₹{item.price}</p>
                     {item.reorder_count && (
-                      <p className="text-[9px] text-muted-foreground font-medium">{item.reorder_count}</p>
+                      <p className="text-[9px] text-muted-foreground font-medium">{item.reorder_count} orders</p>
                     )}
                   </div>
 
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.93 }}
-                    onClick={() => handleAddClick(item)}
-                    className={`font-bold px-3.5 py-1.5 rounded-xl text-xs flex items-center gap-1 shadow-xs transition-all cursor-pointer ${
-                      isJustAdded
-                        ? "bg-green-600 text-white shadow-md"
-                        : "bg-accent text-accent-foreground hover:opacity-90"
-                    }`}
-                  >
-                    {isJustAdded ? (
-                      <>
-                        <Check className="w-3.5 h-3.5" />
-                        <span>ADDED!</span>
-                      </>
-                    ) : (
-                      <>
+                  {getItemCartQuantity(item.id) > 0 ? (
+                    <div className="flex items-center gap-1.5 bg-accent text-accent-foreground font-extrabold rounded-xl px-2.5 py-1 shadow-md border border-accent/40">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDecrementItem(item);
+                        }}
+                        className="p-0.5 hover:opacity-80 active:scale-90 transition-transform cursor-pointer"
+                        aria-label={`Decrease ${item.name} quantity`}
+                      >
+                        <Minus className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="w-4 text-center font-extrabold tabular-nums text-xs">
+                        {getItemCartQuantity(item.id)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleIncrementItem(item);
+                        }}
+                        className="p-0.5 hover:opacity-80 active:scale-90 transition-transform cursor-pointer"
+                        aria-label={`Increase ${item.name} quantity`}
+                      >
                         <Plus className="w-3.5 h-3.5" />
-                        <span>ADD</span>
-                      </>
-                    )}
-                  </motion.button>
+                      </button>
+                    </div>
+                  ) : (
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.93 }}
+                      onClick={() => handleAddClick(item)}
+                      className={`font-bold px-3.5 py-1.5 rounded-xl text-xs flex items-center gap-1 shadow-xs transition-all cursor-pointer ${
+                        isJustAdded
+                          ? "bg-green-600 text-white shadow-md"
+                          : "bg-accent text-accent-foreground hover:opacity-90"
+                      }`}
+                    >
+                      {isJustAdded ? (
+                        <>
+                          <Check className="w-3.5 h-3.5" />
+                          <span>ADDED!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>ADD</span>
+                        </>
+                      )}
+                    </motion.button>
+                  )}
                 </div>
               </motion.div>
             );
@@ -1066,7 +935,7 @@ export default function OnlineOrderPage() {
               <span>Highly Reordered</span>
             </button>
 
-            {CATEGORIES.map((cat) => (
+            {categories.map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => setSelectedCat(cat.id)}
@@ -1118,7 +987,22 @@ export default function OnlineOrderPage() {
       <main className="max-w-6xl mx-auto px-4 md:px-6 py-6 grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Column: Dish Cards Grid (8 Columns on Desktop) */}
         <div className="lg:col-span-8">
-          {filtered.length === 0 ? (
+          {menuLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="bg-card border border-border rounded-2xl p-4 space-y-3 animate-pulse">
+                  <div className="flex gap-3">
+                    <div className="w-24 h-24 rounded-xl bg-muted" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 bg-muted rounded-md w-3/4" />
+                      <div className="h-3 bg-muted rounded-md w-full" />
+                      <div className="h-4 bg-muted rounded-md w-1/4" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
             /* Empty State */
             <div className="bg-card border border-border rounded-3xl p-12 text-center space-y-3 shadow-sm">
               <SlidersHorizontal className="w-10 h-10 text-accent/60 mx-auto" />
@@ -1140,29 +1024,34 @@ export default function OnlineOrderPage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               {filtered.map((item) => {
-                const config = ITEM_CUSTOMIZATIONS[item.id];
-                const isCustomizable = !!(config && (config.sizes || config.extras || config.spices));
+                const isCustomizable = item.is_customizable;
                 const isJustAdded = addedItemIds[item.id];
+                const isOutOfStock = item.is_available === false;
 
                 return (
                   <motion.div
                     key={item.id}
-                    whileHover={{ y: -3 }}
+                    whileHover={isOutOfStock ? {} : { y: -3 }}
                     className={`bg-card border ${
                       item.is_highly_reordered
                         ? "border-amber-500/30 hover:border-amber-500/60"
                         : "border-border hover:border-accent/40"
-                    } rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between p-4 group relative`}
+                    } ${isOutOfStock ? "opacity-75" : ""} rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between p-4 group relative`}
                   >
                     <div className="flex gap-3.5">
                       {/* Image */}
                       <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden bg-muted flex-shrink-0 relative">
                         <ImageWithFallback
-                          src={item.photo}
+                          src={item.photo || item.image_url}
                           alt={item.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          className={`w-full h-full object-cover ${isOutOfStock ? "grayscale-[40%]" : "group-hover:scale-105"} transition-transform`}
                         />
-                        {item.is_highly_reordered && (
+                        {isOutOfStock && (
+                          <div className="absolute inset-0 bg-black/70 backdrop-blur-[1px] flex items-center justify-center text-rose-300 font-extrabold text-[10px] tracking-wider uppercase">
+                            Out of Stock
+                          </div>
+                        )}
+                        {!isOutOfStock && item.is_highly_reordered && (
                           <div className="absolute top-1.5 left-1.5 bg-black/80 backdrop-blur-md text-amber-400 font-extrabold text-[9px] px-1.5 py-0.5 rounded-md flex items-center gap-0.5 border border-amber-400/30">
                             <Flame className="w-2.5 h-2.5 text-orange-400 fill-orange-400" />
                             <span>Top Reordered</span>
@@ -1208,7 +1097,7 @@ export default function OnlineOrderPage() {
 
                     {/* Add Button Action */}
                     <div className="pt-3 mt-3 border-t border-border flex items-center justify-between">
-                      {item.reorder_rate ? (
+                      {item.has_sufficient_data && item.reorder_rate ? (
                         <span className="text-[10px] text-amber-600 font-bold flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded-md">
                           <Flame className="w-3 h-3 text-orange-500" />
                           {item.reorder_rate}
@@ -1217,28 +1106,65 @@ export default function OnlineOrderPage() {
                         <span />
                       )}
 
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.93 }}
-                        onClick={() => handleAddClick(item)}
-                        className={`font-bold px-4 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer ${
-                          isJustAdded
-                            ? "bg-green-600 text-white shadow-md"
-                            : "bg-accent text-accent-foreground hover:opacity-90"
-                        }`}
-                      >
-                        {isJustAdded ? (
-                          <>
-                            <Check className="w-3.5 h-3.5" />
-                            <span>ADDED!</span>
-                          </>
-                        ) : (
-                          <>
+                      {isOutOfStock ? (
+                        <button
+                          disabled
+                          className="bg-muted text-muted-foreground/50 border border-border px-4 py-1.5 rounded-xl text-xs font-bold cursor-not-allowed"
+                        >
+                          UNAVAILABLE
+                        </button>
+                      ) : getItemCartQuantity(item.id) > 0 ? (
+                        <div className="flex items-center gap-1.5 bg-accent text-accent-foreground font-extrabold rounded-xl px-2.5 py-1 shadow-md border border-accent/40">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDecrementItem(item);
+                            }}
+                            className="p-1 hover:opacity-80 active:scale-90 transition-transform cursor-pointer"
+                            aria-label={`Decrease ${item.name} quantity`}
+                          >
+                            <Minus className="w-3.5 h-3.5" />
+                          </button>
+                          <span className="w-5 text-center font-extrabold tabular-nums text-xs">
+                            {getItemCartQuantity(item.id)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleIncrementItem(item);
+                            }}
+                            className="p-1 hover:opacity-80 active:scale-90 transition-transform cursor-pointer"
+                            aria-label={`Increase ${item.name} quantity`}
+                          >
                             <Plus className="w-3.5 h-3.5" />
-                            <span>ADD</span>
-                          </>
-                        )}
-                      </motion.button>
+                          </button>
+                        </div>
+                      ) : (
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.93 }}
+                          onClick={() => handleAddClick(item)}
+                          className={`font-bold px-4 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition-all ${
+                            isJustAdded
+                              ? "bg-green-600 text-white shadow-md cursor-pointer"
+                              : "bg-accent text-accent-foreground hover:opacity-90 cursor-pointer"
+                          }`}
+                        >
+                          {isJustAdded ? (
+                            <>
+                              <Check className="w-3.5 h-3.5" />
+                              <span>ADDED!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>ADD</span>
+                            </>
+                          )}
+                        </motion.button>
+                      )}
                     </div>
                   </motion.div>
                 );
@@ -1445,106 +1371,52 @@ export default function OnlineOrderPage() {
                   </p>
                 )}
 
-                {/* 1. Size Selector */}
-                {ITEM_CUSTOMIZATIONS[customizingItem.id]?.sizes && (
-                  <div className="space-y-3">
-                    <h3 className="font-heading text-sm font-bold text-foreground flex items-center justify-between">
-                      <span>Select Size</span>
-                      <span className="text-[10px] text-accent uppercase font-bold tracking-wider">Required</span>
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                      {ITEM_CUSTOMIZATIONS[customizingItem.id].sizes!.map((size, idx) => {
-                        const selected = selectedSizeIndex === idx;
-                        return (
-                          <button
-                            key={size.name}
-                            type="button"
-                            onClick={() => setSelectedSizeIndex(idx)}
-                            className={`p-3.5 rounded-2xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
-                              selected
-                                ? "bg-accent text-accent-foreground border-accent font-bold shadow-md ring-2 ring-accent/30"
-                                : "bg-muted/30 border-border text-foreground hover:bg-muted/60"
-                            }`}
-                          >
-                            <span className="text-xs font-bold">{size.name}</span>
-                            <span
-                              className={`text-[10px] mt-1 ${
-                                selected ? "text-accent-foreground/90" : "text-muted-foreground"
+                {/* Dynamic Customization Groups from DB */}
+                {loadingCustomizations ? (
+                  <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground">
+                    <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                    <span>Loading customization options…</span>
+                  </div>
+                ) : (
+                  customizationGroups.map((group) => (
+                    <div key={group.id} className="space-y-3">
+                      <h3 className="font-heading text-sm font-bold text-foreground flex items-center justify-between">
+                        <span>{group.group_name}</span>
+                        {group.is_required && (
+                          <span className="text-[10px] text-accent uppercase font-bold tracking-wider">Required</span>
+                        )}
+                      </h3>
+                      <div className="space-y-2">
+                        {group.options.map((opt: any) => {
+                          const checked = selectedExtras.includes(opt.name) || selectedExtras.includes(opt.id);
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => toggleExtra(opt.name)}
+                              className={`w-full p-3.5 rounded-2xl border flex items-center justify-between transition-all cursor-pointer ${
+                                checked
+                                  ? "bg-accent/10 border-accent text-foreground font-semibold"
+                                  : "bg-muted/30 border-border text-foreground/80 hover:bg-muted/60"
                               }`}
                             >
-                              {size.extraPrice > 0 ? `+₹${size.extraPrice}` : "Included"}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* 2. Add-ons / Extras Checklist */}
-                {ITEM_CUSTOMIZATIONS[customizingItem.id]?.extras && (
-                  <div className="space-y-3 pt-2">
-                    <h3 className="font-heading text-sm font-bold text-foreground flex items-center justify-between">
-                      <span>Add Extra Toppings & Dips</span>
-                      <span className="text-[10px] text-muted-foreground font-normal">Optional</span>
-                    </h3>
-                    <div className="space-y-2">
-                      {ITEM_CUSTOMIZATIONS[customizingItem.id].extras!.map((extra) => {
-                        const checked = selectedExtras.includes(extra.name);
-                        return (
-                          <button
-                            key={extra.name}
-                            type="button"
-                            onClick={() => toggleExtra(extra.name)}
-                            className={`w-full p-3.5 rounded-2xl border flex items-center justify-between transition-all cursor-pointer ${
-                              checked
-                                ? "bg-accent/10 border-accent text-foreground font-semibold"
-                                : "bg-muted/30 border-border text-foreground/80 hover:bg-muted/60"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2.5">
-                              {checked ? (
-                                <CheckSquare className="w-4 h-4 text-accent" />
-                              ) : (
-                                <Square className="w-4 h-4 text-muted-foreground/40" />
+                              <div className="flex items-center gap-2.5">
+                                {checked ? (
+                                  <CheckSquare className="w-4 h-4 text-accent" />
+                                ) : (
+                                  <Square className="w-4 h-4 text-muted-foreground/40" />
+                                )}
+                                <span className="text-xs font-medium">{opt.name}</span>
+                              </div>
+                              {opt.extraPrice > 0 && (
+                                <span className="font-bold text-accent">+₹{opt.extraPrice}</span>
                               )}
-                              <span className="text-xs font-medium">{extra.name}</span>
-                            </div>
-                            <span className="font-bold text-accent">+₹{extra.price}</span>
-                          </button>
-                        );
-                      })}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                )}
-
-                {/* 3. Spice Level Selector */}
-                {ITEM_CUSTOMIZATIONS[customizingItem.id]?.spices && (
-                  <div className="space-y-3 pt-2">
-                    <h3 className="font-heading text-sm font-bold text-foreground flex items-center gap-1.5">
-                      <Flame className="w-4 h-4 text-accent" />
-                      <span>Select Spice Level</span>
-                    </h3>
-                    <div className="grid grid-cols-3 gap-2 bg-muted/40 p-1.5 rounded-2xl border border-border">
-                      {ITEM_CUSTOMIZATIONS[customizingItem.id].spices!.map((spice) => {
-                        const selected = selectedSpice === spice;
-                        return (
-                          <button
-                            key={spice}
-                            type="button"
-                            onClick={() => setSelectedSpice(spice)}
-                            className={`py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                              selected
-                                ? "bg-accent text-accent-foreground font-bold shadow-xs"
-                                : "text-muted-foreground hover:text-foreground"
-                            }`}
-                          >
-                            {spice}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+                  ))
                 )}
 
                 {/* 4. Special Instructions */}

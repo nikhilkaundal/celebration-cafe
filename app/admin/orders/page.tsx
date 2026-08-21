@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import Link from "next/link";
 import {
   ShoppingBag,
   Clock,
@@ -21,6 +22,8 @@ import {
   RefreshCw,
   XCircle,
   Sparkles,
+  UserCheck,
+  Ban,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase, type Order, type OrderItem, type OrderStatus, type OrderType } from "@/lib/supabase";
@@ -38,6 +41,13 @@ const STATUS_COLUMNS: { id: OrderStatus; label: string; icon: any; color: string
     bg: "bg-amber-500/10",
   },
   {
+    id: "confirmed",
+    label: "Confirmed",
+    icon: CheckCircle2,
+    color: "text-emerald-600 border-emerald-500/40",
+    bg: "bg-emerald-500/10",
+  },
+  {
     id: "preparing",
     label: "Preparing",
     icon: Utensils,
@@ -48,8 +58,8 @@ const STATUS_COLUMNS: { id: OrderStatus; label: string; icon: any; color: string
     id: "ready",
     label: "Ready for Pickup",
     icon: Store,
-    color: "text-emerald-600 border-emerald-500/40",
-    bg: "bg-emerald-500/10",
+    color: "text-teal-600 border-teal-500/40",
+    bg: "bg-teal-500/10",
   },
   {
     id: "out-for-delivery",
@@ -110,12 +120,10 @@ export default function AdminOrdersPage() {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "orders" },
         async (payload) => {
-          // Play audio notification chime
           if (audioEnabled) {
             playNotificationChime();
           }
 
-          // Fetch order with items
           const { data: newOrder } = await supabase
             .from("orders")
             .select("*, order_items(*)")
@@ -171,15 +179,19 @@ export default function AdminOrdersPage() {
     }
   }
 
+  // Update order status via RPC update_order_status
   async function updateOrderStatus(orderId: string, nextStatus: OrderStatus) {
     try {
-      const { error } = await supabase
-        .from("orders")
-        .update({ status: nextStatus })
-        .eq("id", orderId);
+      const res = await fetch("/api/orders/update-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, newStatus: nextStatus }),
+      });
 
-      if (error) {
-        toast.error("Failed to update order status");
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || "Failed to update order status");
         return;
       }
 
@@ -196,6 +208,8 @@ export default function AdminOrdersPage() {
   function getNextStatus(current: OrderStatus): OrderStatus | null {
     switch (current) {
       case "pending":
+        return "confirmed";
+      case "confirmed":
         return "preparing";
       case "preparing":
         return "ready";
@@ -211,11 +225,13 @@ export default function AdminOrdersPage() {
   function getNextStatusLabel(current: OrderStatus): string {
     switch (current) {
       case "pending":
+        return "Confirm Order →";
+      case "confirmed":
         return "Start Preparing →";
       case "preparing":
         return "Mark Ready →";
       case "ready":
-        return "Dispatch / Out for Delivery →";
+        return "Dispatch / Delivery →";
       case "out-for-delivery":
         return "Mark Completed ✓";
       default:
@@ -255,7 +271,7 @@ export default function AdminOrdersPage() {
   });
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6 max-w-[1500px] mx-auto">
       {/* ── Dashboard Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-3xl border border-pine/10 shadow-xs">
         <div>
@@ -267,7 +283,7 @@ export default function AdminOrdersPage() {
             </span>
           </div>
           <p className="text-xs text-charcoal/60 mt-0.5">
-            Manage incoming dine-in, takeaway, and delivery orders live
+            Manage incoming dine-in, takeaway, and delivery orders live with state-machine security
           </p>
         </div>
 
@@ -375,25 +391,25 @@ export default function AdminOrdersPage() {
         })}
       </div>
 
-      {/* ── Desktop Kanban Columns (5 Columns) ── */}
-      <div className="hidden lg:grid grid-cols-5 gap-4 items-start">
+      {/* ── Desktop Kanban Columns (6 Columns) ── */}
+      <div className="hidden lg:grid grid-cols-6 gap-3.5 items-start">
         {STATUS_COLUMNS.map((col) => {
           const colOrders = filteredOrders.filter((o) => o.status === col.id);
 
           return (
             <div
               key={col.id}
-              className="bg-white/60 backdrop-blur-sm border border-pine/10 rounded-3xl p-3.5 space-y-3 min-h-[600px] flex flex-col shadow-xs"
+              className="bg-white/60 backdrop-blur-sm border border-pine/10 rounded-3xl p-3 space-y-3 min-h-[600px] flex flex-col shadow-xs"
             >
               {/* Column Header */}
               <div className="flex items-center justify-between border-b border-pine/10 pb-2.5 px-1">
-                <div className="flex items-center gap-2">
-                  <span className={`p-1.5 rounded-xl ${col.bg} border ${col.color}`}>
-                    <col.icon className="w-4 h-4" />
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className={`p-1 rounded-lg ${col.bg} border ${col.color}`}>
+                    <col.icon className="w-3.5 h-3.5" />
                   </span>
-                  <h3 className="font-heading text-xs font-bold text-pine">{col.label}</h3>
+                  <h3 className="font-heading text-xs font-bold text-pine truncate">{col.label}</h3>
                 </div>
-                <span className="bg-pine text-stone text-[11px] font-bold px-2 py-0.5 rounded-full">
+                <span className="bg-pine text-stone text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0">
                   {colOrders.length}
                 </span>
               </div>
@@ -402,7 +418,7 @@ export default function AdminOrdersPage() {
               <div className="space-y-3 flex-1 overflow-y-auto max-h-[75vh] pr-0.5">
                 {colOrders.length === 0 ? (
                   <div className="text-center py-10 space-y-1 text-charcoal/40">
-                    <p className="text-xs font-medium">No orders in {col.label.toLowerCase()}</p>
+                    <p className="text-[11px] font-medium">No orders in {col.label.toLowerCase()}</p>
                   </div>
                 ) : (
                   colOrders.map((order) => (
@@ -410,6 +426,7 @@ export default function AdminOrdersPage() {
                       key={order.id}
                       order={order}
                       onAdvanceStatus={(next) => updateOrderStatus(order.id, next)}
+                      onCancelOrder={() => updateOrderStatus(order.id, "cancelled")}
                       getNextStatus={getNextStatus}
                       getNextStatusLabel={getNextStatusLabel}
                       getTimeAgo={getTimeAgo}
@@ -431,6 +448,7 @@ export default function AdminOrdersPage() {
               key={order.id}
               order={order}
               onAdvanceStatus={(next) => updateOrderStatus(order.id, next)}
+              onCancelOrder={() => updateOrderStatus(order.id, "cancelled")}
               getNextStatus={getNextStatus}
               getNextStatusLabel={getNextStatusLabel}
               getTimeAgo={getTimeAgo}
@@ -453,12 +471,14 @@ export default function AdminOrdersPage() {
 function OrderCard({
   order,
   onAdvanceStatus,
+  onCancelOrder,
   getNextStatus,
   getNextStatusLabel,
   getTimeAgo,
 }: {
   order: OrderWithItems;
   onAdvanceStatus: (nextStatus: OrderStatus) => void;
+  onCancelOrder: () => void;
   getNextStatus: (curr: OrderStatus) => OrderStatus | null;
   getNextStatusLabel: (curr: OrderStatus) => string;
   getTimeAgo: (dateStr: string) => string;
@@ -474,18 +494,19 @@ function OrderCard({
 
   const badge = orderTypeBadges[order.order_type] || orderTypeBadges["dine-in"];
   const Icon = badge.icon;
+  const canCancel = ["pending", "confirmed", "preparing"].includes(order.status);
 
   return (
     <motion.div
       layout
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="bg-white rounded-2xl border border-pine/15 p-4 shadow-sm hover:shadow-md transition-all space-y-3"
+      className="bg-white rounded-2xl border border-pine/15 p-3.5 shadow-sm hover:shadow-md transition-all space-y-3"
     >
       {/* Card Header: Type Badge & Order Short ID & Time */}
-      <div className="flex items-center justify-between gap-2 border-b border-pine/10 pb-2.5">
+      <div className="flex items-center justify-between gap-1.5 border-b border-pine/10 pb-2">
         <span
-          className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider flex items-center gap-1 border ${badge.bg} ${badge.text}`}
+          className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 border ${badge.bg} ${badge.text}`}
         >
           <Icon className="w-3 h-3" />
           <span>{badge.label}</span>
@@ -493,33 +514,43 @@ function OrderCard({
 
         <div className="text-right">
           <span className="font-mono text-xs font-extrabold text-pine block">#{shortId}</span>
-          <span className="text-[10px] text-charcoal/60 flex items-center gap-1 justify-end">
+          <span className="text-[9px] text-charcoal/60 flex items-center gap-1 justify-end">
             <Clock className="w-3 h-3 text-marigold" />
             {getTimeAgo(order.created_at)}
           </span>
         </div>
       </div>
 
-      {/* Customer Info */}
+      {/* Customer Info & CRM Link */}
       <div className="space-y-1 text-xs">
-        <div className="flex items-center gap-1.5 font-bold text-pine">
-          <User className="w-3.5 h-3.5 text-pine/60 shrink-0" />
-          <span>{order.customer_name}</span>
+        <div className="flex items-center justify-between font-bold text-pine">
+          <div className="flex items-center gap-1 truncate">
+            <User className="w-3.5 h-3.5 text-pine/60 shrink-0" />
+            <span className="truncate">{order.customer_name}</span>
+          </div>
+
+          <Link
+            href="/admin/customers"
+            className="text-[10px] text-marigold hover:underline flex items-center gap-0.5 shrink-0"
+            title="Inspect Customer CRM"
+          >
+            <UserCheck className="w-3 h-3" /> CRM
+          </Link>
         </div>
 
         {order.phone && (
           <a
             href={`tel:${order.phone}`}
-            className="flex items-center gap-1.5 text-charcoal/70 hover:text-pine transition"
+            className="flex items-center gap-1.5 text-charcoal/70 hover:text-pine transition text-[11px]"
           >
-            <Phone className="w-3.5 h-3.5 text-marigold shrink-0" />
+            <Phone className="w-3 h-3 text-marigold shrink-0" />
             <span>{order.phone}</span>
           </a>
         )}
 
         {order.address && (
-          <div className="flex items-start gap-1.5 text-charcoal/70 text-[11px] leading-tight pt-0.5">
-            <MapPin className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
+          <div className="flex items-start gap-1 text-charcoal/70 text-[10px] leading-tight pt-0.5">
+            <MapPin className="w-3 h-3 text-red-500 shrink-0 mt-0.5" />
             <span className="line-clamp-2">{order.address}</span>
           </div>
         )}
@@ -545,24 +576,36 @@ function OrderCard({
         )}
       </div>
 
-      {/* Total & Action */}
-      <div className="pt-2 flex items-center justify-between border-t border-pine/10">
-        <div>
-          <span className="text-[9px] text-charcoal/50 uppercase block font-semibold">Total Amount</span>
-          <span className="font-heading text-sm font-bold text-pine">₹{order.total_amount}</span>
+      {/* Total & Action Buttons */}
+      <div className="pt-2 border-t border-pine/10 space-y-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-[9px] text-charcoal/50 uppercase block font-semibold">Total</span>
+            <span className="font-heading text-sm font-bold text-pine">₹{order.total_amount}</span>
+          </div>
+
+          {canCancel && (
+            <button
+              onClick={onCancelOrder}
+              className="text-[10px] font-bold text-red-600 hover:bg-red-50 px-2 py-1 rounded-lg border border-red-200 transition cursor-pointer flex items-center gap-1"
+              title="Cancel order"
+            >
+              <Ban className="w-3 h-3" /> Cancel
+            </button>
+          )}
         </div>
 
         {nextStatus ? (
           <button
             onClick={() => onAdvanceStatus(nextStatus)}
-            className="bg-marigold text-pineDark hover:bg-marigoldLight font-extrabold text-xs px-3 py-2 rounded-xl flex items-center gap-1 shadow-xs transition active:scale-95 cursor-pointer"
+            className="w-full bg-marigold text-pineDark hover:bg-marigoldLight font-extrabold text-xs py-2 rounded-xl flex items-center justify-center gap-1 shadow-xs transition active:scale-95 cursor-pointer"
           >
             <span>{getNextStatusLabel(order.status)}</span>
           </button>
         ) : (
-          <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
-            Completed ✓
-          </span>
+          <div className="text-center py-1 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-[10px] font-extrabold text-emerald-800 uppercase">
+            {order.status === "cancelled" ? "Cancelled ✕" : "Completed ✓"}
+          </div>
         )}
       </div>
     </motion.div>
