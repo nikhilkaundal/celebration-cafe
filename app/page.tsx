@@ -25,6 +25,8 @@ import { supabase, type Category, type MenuItem, type OrderType, type ItemCustom
 import { useCart, getLineKey } from "@/lib/cart-context";
 import CustomerUserMenu from "@/components/CustomerUserMenu";
 import { LocationAddressSelector } from "@/components/LocationAddressSelector";
+import AnimatedBackground from "@/components/ui/animated-background";
+import { BorderTrail } from "@/components/ui/border-trail";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -344,8 +346,17 @@ function ItemDetailModal({
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 100, opacity: 0 }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="relative z-10 bg-card w-full md:w-[480px] md:rounded-3xl rounded-t-3xl max-h-[90vh] overflow-y-auto shadow-2xl"
+        className="relative z-10 bg-card w-full md:w-[480px] md:rounded-3xl rounded-t-3xl max-h-[90vh] overflow-y-auto shadow-2xl border border-white/10 overflow-hidden"
       >
+        <BorderTrail
+          size={150}
+          className="bg-gradient-to-r from-marigold via-amber-400 to-marigold opacity-70"
+          transition={{
+            repeat: Infinity,
+            duration: 4,
+            ease: "linear",
+          }}
+        />
         {/* Item image */}
         <div className="relative h-56 bg-muted overflow-hidden md:rounded-t-3xl rounded-t-3xl flex-shrink-0">
           <ImageWithFallback
@@ -541,37 +552,41 @@ function CartDrawer({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-xs"
         onClick={onClose}
       />
       <motion.div
         initial={{ x: "100%" }}
         animate={{ x: 0 }}
         exit={{ x: "100%" }}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="relative z-10 bg-card w-full max-w-sm h-full flex flex-col shadow-2xl"
+        transition={{ type: "spring", stiffness: 320, damping: 32 }}
+        className="relative z-10 bg-[#FAF7F0] text-[#2A1508] w-full max-w-sm h-full flex flex-col shadow-2xl border-l border-[#1F3B2C]/15"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <div className="flex items-center gap-2">
-            <ShoppingBag className="w-5 h-5 text-primary" />
-            <h2 className="font-heading text-xl font-semibold text-foreground">Your Cart</h2>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#1F3B2C]/15 bg-[#FAF7F0]">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-full bg-[#C4622D]/15 border border-[#C4622D]/30 flex items-center justify-center text-[#C4622D]">
+              <ShoppingBag className="w-4 h-4" />
+            </div>
+            <h2 className="font-heading text-xl font-black text-[#2A1508]">Your Cart</h2>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded-full text-[#6B4226] hover:bg-[#1F3B2C]/10 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Items */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-5 py-5 space-y-3.5 custom-scrollbar">
           {isEmpty ? (
             <div className="flex flex-col items-center justify-center h-full text-center py-20">
-              <ShoppingBag className="w-14 h-14 text-muted-foreground/20 mb-4" />
-              <p className="font-heading text-xl text-foreground">Your cart is empty</p>
-              <p className="text-sm text-muted-foreground mt-1.5">Add delicious items to get started.</p>
+              <div className="w-16 h-16 rounded-full bg-[#C4622D]/10 flex items-center justify-center text-[#C4622D]/40 mb-4">
+                <ShoppingBag className="w-8 h-8" />
+              </div>
+              <p className="font-heading text-xl font-bold text-[#2A1508]">Your cart is empty</p>
+              <p className="text-sm text-[#6B4226]/80 mt-1.5 font-medium">Explore our menu and add delicious items!</p>
             </div>
           ) : (
             lines.map((l) => {
@@ -580,53 +595,67 @@ function CartDrawer({
               const sub = l.subtotal ?? uPrice * l.quantity;
 
               return (
-                <div key={key} className="flex gap-3 py-2 border-b border-border/40 last:border-0">
-                  <div className="w-16 h-16 rounded-xl bg-muted overflow-hidden flex-shrink-0">
+                <div
+                  key={key}
+                  className="flex gap-3.5 p-3.5 rounded-2xl bg-[#F5EFE6] border border-[#1F3B2C]/10 shadow-xs relative"
+                >
+                  <div className="w-16 h-16 rounded-xl bg-[#FAF7F0] overflow-hidden flex-shrink-0 relative border border-[#1F3B2C]/10">
                     <ImageWithFallback
                       src={getItemPhoto(l.item)}
                       alt={l.item.name}
                       className="w-full h-full object-cover"
                     />
                   </div>
+
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-foreground leading-tight truncate">
+                        <p className="text-sm font-heading font-bold text-[#2A1508] leading-tight truncate">
                           {l.item.name}
                         </p>
                         {l.size && (
-                          <p className="text-xs text-muted-foreground mt-0.5">Size: {l.size}</p>
+                          <p className="text-xs text-[#6B4226]/80 mt-0.5 font-medium">Size: {l.size}</p>
                         )}
                         {l.extras && l.extras.length > 0 && (
-                          <p className="text-xs text-muted-foreground leading-relaxed truncate">
+                          <p className="text-xs text-[#6B4226]/80 leading-relaxed truncate font-medium">
                             + {l.extras.join(", ")}
                           </p>
                         )}
                       </div>
                       <button
                         onClick={() => removeItem(key)}
-                        className="text-muted-foreground hover:text-destructive transition-colors flex-shrink-0 mt-0.5"
+                        className="text-[#6B4226]/60 hover:text-red-600 transition-colors flex-shrink-0 mt-0.5"
+                        aria-label="Remove item"
                       >
-                        <X className="w-3.5 h-3.5" />
+                        <X className="w-4 h-4" />
                       </button>
                     </div>
-                    <div className="flex items-center justify-between mt-2">
+
+                    <div className="flex items-center justify-between mt-3">
+                      {/* Quantity Stepper */}
                       <div className="flex items-center gap-2">
-                        <button
+                        <motion.button
+                          whileTap={{ scale: 0.9 }}
                           onClick={() => updateQuantity(key, l.quantity - 1)}
-                          className="w-7 h-7 rounded-full border border-border flex items-center justify-center hover:bg-muted transition-colors"
+                          className="w-7 h-7 rounded-full border border-[#1F3B2C]/20 bg-[#FAF7F0] text-[#2A1508] flex items-center justify-center hover:bg-[#C4622D] hover:text-[#F4E4C0] hover:border-[#C4622D] transition-colors"
                         >
                           <Minus className="w-3 h-3" />
-                        </button>
-                        <span className="text-sm font-medium w-4 text-center tabular-nums">{l.quantity}</span>
-                        <button
+                        </motion.button>
+                        <span className="text-xs font-heading font-extrabold w-4 text-center tabular-nums text-[#2A1508]">
+                          {l.quantity}
+                        </span>
+                        <motion.button
+                          whileTap={{ scale: 0.9 }}
                           onClick={() => updateQuantity(key, l.quantity + 1)}
-                          className="w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:opacity-90 transition-opacity"
+                          className="w-7 h-7 rounded-full bg-[#C4622D] text-[#F4E4C0] flex items-center justify-center hover:brightness-110 transition-all shadow-xs"
                         >
                           <Plus className="w-3 h-3" />
-                        </button>
+                        </motion.button>
                       </div>
-                      <p className="text-sm font-semibold text-foreground tabular-nums">₹{sub}</p>
+
+                      <p className="font-heading font-extrabold text-sm text-[#C4852A] tabular-nums">
+                        ₹{sub}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -637,19 +666,22 @@ function CartDrawer({
 
         {/* Footer */}
         {!isEmpty && (
-          <div className="px-5 py-5 border-t border-border space-y-4 bg-muted/20">
+          <div className="px-6 py-5 border-t border-[#1F3B2C]/15 space-y-4 bg-[#F5EFE6]">
             <div className="flex justify-between items-center">
-              <span className="text-muted-foreground text-sm">Subtotal</span>
-              <span className="font-semibold text-foreground tabular-nums text-lg">₹{total}</span>
+              <span className="text-[#6B4226] font-medium text-sm">Subtotal</span>
+              <span className="font-heading font-extrabold text-[#C4852A] tabular-nums text-xl">₹{total}</span>
             </div>
-            <Link
-              href="/checkout"
-              onClick={onClose}
-              className="w-full bg-accent text-accent-foreground py-3.5 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-md text-center block"
-            >
-              Proceed to Checkout <ArrowRight className="w-4 h-4" />
-            </Link>
-            <p className="text-xs text-muted-foreground text-center">
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }}>
+              <Link
+                href="/checkout"
+                onClick={onClose}
+                className="w-full bg-[#C4622D] text-[#F4E4C0] font-heading font-extrabold text-xs uppercase tracking-wider py-3.5 rounded-full flex items-center justify-center gap-2 hover:brightness-110 transition shadow-[0_6px_20px_rgba(196,98,45,0.38)] text-center block"
+              >
+                <span>Proceed to Checkout</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </motion.div>
+            <p className="text-[11px] text-[#6B4226]/75 text-center font-medium">
               Taxes & delivery fees calculated at checkout
             </p>
           </div>
@@ -674,7 +706,6 @@ function Navbar({
 }) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [customerName, setCustomerName] = useState<string | null>(null);
   const { total } = useCart();
 
   useEffect(() => {
@@ -683,20 +714,12 @@ function Navbar({
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  useEffect(() => {
-    try {
-      const p = localStorage.getItem("celebration_customer_profile");
-      if (p) {
-        const parsed = JSON.parse(p);
-        if (parsed.name) setCustomerName(parsed.name);
-      }
-    } catch (e) {}
-  }, []);
-
-  const isSolid = scrolled || page !== "home";
-
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 w-full bg-[#121110]/90 text-stone backdrop-blur-xl border-b border-white/10 shadow-lg transition-all duration-300">
+    <header
+      className={`fixed top-0 left-0 right-0 z-50 w-full bg-[#3B4A2F]/95 text-[#F4E4C0] backdrop-blur-xl transition-all duration-300 ${
+        scrolled ? "border-b border-white/10 shadow-lg" : "border-b border-transparent shadow-none"
+      }`}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-3 flex items-center justify-between gap-4">
         {/* Logo & Location Tag */}
         <div className="flex items-center gap-4">
@@ -710,7 +733,7 @@ function Navbar({
             <img
               src="/images/logos/logo.svg"
               alt="Celebration Food Cafe"
-              className="h-11 md:h-13 w-auto object-contain filter drop-shadow-md transition-transform duration-300 group-hover:scale-105"
+              className="h-10 md:h-12 w-auto object-contain filter drop-shadow-md transition-transform duration-300 group-hover:scale-105"
             />
             <span className="sr-only">Celebration Food Cafe</span>
           </button>
@@ -719,18 +742,28 @@ function Navbar({
             <LocationAddressSelector />
           </div>
         </div>
-
-        {/* Desktop Navigation Links */}
-        <nav className="hidden md:flex items-center gap-6 lg:gap-10">
-          {[
-            { id: "home", label: "Home" },
-            { id: "menu", label: "Menu" },
-            { id: "story", label: "Our Story" },
-          ].map((item) => {
-            const active = page === item.id;
-            return (
-              <button
+        {/* Desktop Navigation Links with AnimatedBackground */}
+        <nav className="hidden md:flex items-center">
+          <AnimatedBackground
+            defaultValue={page}
+            className="bg-[#C4622D] shadow-md shadow-[#C4622D]/35"
+            transition={{
+              type: "spring",
+              bounce: 0.15,
+              duration: 0.35,
+            }}
+            enableHover
+          >
+            {[
+              { id: "home", label: "HOME" },
+              { id: "menu", label: "MENU" },
+              { id: "story", label: "OUR STORY" },
+            ].map((item) => (
+              <motion.button
                 key={item.id}
+                data-id={item.id}
+                type="button"
+                whileTap={{ scale: 0.95 }}
                 onClick={() => {
                   setPage(item.id as PageView);
                   if (item.id === "menu") {
@@ -740,32 +773,34 @@ function Navbar({
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   }
                 }}
-                className={`relative text-xs font-bold uppercase tracking-[0.15em] transition-colors py-1.5 px-3.5 rounded-full ${
-                  active
-                    ? "text-pineDark bg-marigold shadow-md font-extrabold"
-                    : "text-stone/90 hover:text-marigold hover:bg-white/5"
+                className={`px-5 py-2 text-xs font-heading font-extrabold tracking-[0.18em] uppercase whitespace-nowrap transition-colors duration-200 ${
+                  page === item.id ? "text-[#F4E4C0]" : "text-[#F4E4C0]/85 hover:text-white"
                 }`}
               >
                 {item.label}
-              </button>
-            );
-          })}
+              </motion.button>
+            ))}
+          </AnimatedBackground>
         </nav>
 
-        {/* Right Actions: User Login / Profile Avatar + Cart Pill + Mobile Toggle */}
+        {/* Right Actions: Hours + User Login / Profile Avatar + Cart Pill */}
         <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="hidden xl:block text-[11px] font-semibold tracking-wider text-[#F4E4C0]/80 uppercase">
+            Open 8am – 10pm
+          </div>
+
           <CustomerUserMenu />
 
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setCartOpen(true)}
-            className="bg-marigold text-pineDark hover:bg-marigoldLight px-5 py-2.5 rounded-full font-extrabold text-xs flex items-center gap-2 shadow-xl transition-all"
+            className="bg-[#C4622D] text-[#F4E4C0] hover:brightness-110 px-5 py-2.5 rounded-full font-extrabold text-xs flex items-center gap-2 shadow-xl transition-all"
           >
             <div className="relative flex items-center">
               <ShoppingBag className="w-4 h-4" />
               {cartCount > 0 && (
-                <span className="absolute -top-2 -right-2.5 w-4 h-4 bg-maroon text-white text-[9px] font-bold rounded-full flex items-center justify-center tabular-nums shadow-xs">
+                <span className="absolute -top-2 -right-2.5 w-4 h-4 bg-[#8B4D2A] text-white text-[9px] font-bold rounded-full flex items-center justify-center tabular-nums shadow-xs">
                   {cartCount}
                 </span>
               )}
@@ -942,140 +977,421 @@ export default function MenuPage() {
 
       {/* ── STORY VIEW ── */}
       {page === "story" && (
-        <section className="pt-24 max-w-4xl mx-auto px-6 py-12">
-          <div className="text-center mb-12">
-            <p className="text-accent text-xs font-semibold tracking-[0.2em] uppercase mb-2">Our Story</p>
-            <h1 className="font-heading text-4xl md:text-5xl font-bold text-foreground">Celebration Food Cafe</h1>
-            <p className="text-muted-foreground text-base mt-3 max-w-lg mx-auto">
-              Bringing happiness and authentic taste to Hamirpur since 2018.
-            </p>
-          </div>
-
-          <div className="space-y-8 text-foreground/80 leading-relaxed text-base">
-            <div className="aspect-video rounded-3xl overflow-hidden bg-muted shadow-md mb-8">
-              <img
-                src="https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&h=600&fit=crop&auto=format&q=80"
-                alt="Cafe ambience"
-                className="w-full h-full object-cover"
-              />
+        <div className="pt-20 pb-20">
+          {/* 1. Story Hero Banner with Organic Top Wave & Earthy Cream Canvas */}
+          <section className="relative bg-[#F4E4C0] text-[#2A1508] pt-16 pb-24 px-4 sm:px-6 overflow-hidden">
+            {/* Background Watermark */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[clamp(80px,16vw,260px)] font-heading font-black text-[#2A1508]/[0.04] select-none pointer-events-none whitespace-nowrap uppercase tracking-tighter">
+              OUR STORY
             </div>
-            <p>
-              Located on Main Bazar Road in Hamirpur, Celebration Food Cafe is built on a passion for comforting food and warm hospitality. Whether you are stopping by for a quick Masala Chai or ordering a feast for family and friends, we prepare every item with carefully selected ingredients.
-            </p>
-            <p>
-              Our menu offers something for everyone, from vegetarian thalis and classic Indian snacks to special beverages and handcrafted desserts. We are open daily from 9:00 AM to 10:00 PM for dine-in, pickup, and delivery across Hamirpur.
-            </p>
-          </div>
-        </section>
+
+            <div className="max-w-5xl mx-auto text-center relative z-10">
+              <motion.p
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="text-[#8B4D2A] text-xs font-heading font-extrabold tracking-[0.28em] uppercase mb-3"
+              >
+                OUR HERITAGE & PASSION
+              </motion.p>
+              <motion.h1
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.1 }}
+                className="font-heading text-4xl sm:text-5xl lg:text-6xl font-black text-[#2A1508] tracking-tight leading-[1.08] mb-6 max-w-3xl mx-auto"
+              >
+                Crafting Unforgettable Flavors in Hamirpur Since 2018
+              </motion.h1>
+              <motion.p
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+                className="text-[#6B4226]/90 text-base md:text-lg max-w-2xl mx-auto leading-relaxed font-medium mb-8"
+              >
+                From a humble tea corner to Hamirpur's favorite dining destination — built on a passion for comforting food, fresh local ingredients, and warm Himalayan hospitality.
+              </motion.p>
+
+              {/* Established Badge Pill */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+                className="inline-flex items-center gap-2.5 bg-[#FAF7F0] backdrop-blur-md px-6 py-2.5 rounded-full border border-[#C4622D]/35 shadow-[0_6px_22px_rgba(42,21,8,0.18)]"
+              >
+                <div className="flex items-center gap-1 text-[#E8A93B]">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="w-3.5 h-3.5 fill-[#E8A93B]" />
+                  ))}
+                </div>
+                <span className="font-heading font-extrabold text-xs tracking-wider uppercase text-[#2A1508]">
+                  ESTD. 2018 · HAMIRPUR, HP
+                </span>
+              </motion.div>
+            </div>
+
+            {/* Story Hero Image Showcase */}
+            <motion.div
+              initial={{ opacity: 0, y: 35 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              className="max-w-5xl mx-auto mt-12 relative z-10"
+            >
+              <div className="aspect-[21/9] rounded-3xl overflow-hidden bg-[#F5EFE6] shadow-[0_20px_45px_rgba(42,21,8,0.22)] border-2 border-white/40 relative group">
+                <img
+                  src="https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1400&h=700&fit=crop&auto=format&q=80"
+                  alt="Celebration Food Cafe Warm Ambience"
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                <div className="absolute bottom-6 left-6 right-6 text-white flex flex-col sm:flex-row sm:items-end justify-between gap-2">
+                  <div>
+                    <span className="text-[#F4E4C0] text-xs font-heading font-extrabold tracking-widest uppercase bg-[#C4622D] px-3.5 py-1 rounded-full border border-white/20">
+                      Main Bazar Road
+                    </span>
+                    <h3 className="font-heading text-xl sm:text-2xl font-bold mt-2 text-white">
+                      Where Friends & Flavors Meet
+                    </h3>
+                  </div>
+                  <p className="text-white/80 text-xs sm:text-sm font-medium">Open Daily 9:00 AM – 10:00 PM</p>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Bottom Terracotta Wave Transition */}
+            <div className="absolute bottom-0 left-0 right-0 w-full overflow-hidden leading-none pointer-events-none z-0">
+              <svg
+                className="relative block w-full h-10 md:h-16 text-[#8B4D2A]"
+                viewBox="0 0 1200 120"
+                preserveAspectRatio="none"
+                fill="currentColor"
+              >
+                <path d="M0,0 C150,90 350,-40 500,45 C650,120 900,10 1200,50 L1200,120 L0,120 Z" />
+              </svg>
+            </div>
+          </section>
+
+          {/* 2. Impact Stats & Milestones Grid */}
+          <section className="bg-[#FAF7F0] py-16 px-4 sm:px-6 relative z-10 border-b border-[#1F3B2C]/10">
+            <div className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
+              {[
+                { number: "2018", label: "Year Established", sub: "Main Bazar Road" },
+                { number: "50,000+", label: "Happy Guests", sub: "Served with smile" },
+                { number: "100%", label: "Fresh Ingredients", sub: "Locally sourced" },
+                { number: "4.9 ★", label: "Average Rating", sub: "2,400+ Reviews" },
+              ].map((stat, index) => (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: 25 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.5, delay: index * 0.1 }}
+                  whileHover={{ y: -5, scale: 1.02 }}
+                  className="bg-[#F5EFE6] rounded-3xl p-6 text-center border border-[#1F3B2C]/10 shadow-md hover:shadow-xl transition-all"
+                >
+                  <p className="font-heading font-black text-3xl sm:text-4xl text-[#C4852A] mb-1">
+                    {stat.number}
+                  </p>
+                  <p className="font-heading font-extrabold text-xs sm:text-sm text-[#2A1508] tracking-wider uppercase">
+                    {stat.label}
+                  </p>
+                  <p className="text-xs text-[#6B4226]/80 mt-1 font-medium">{stat.sub}</p>
+                </motion.div>
+              ))}
+            </div>
+          </section>
+
+          {/* 3. Timeline / Our Journey Chapters (Scroll-Triggered Reveals) */}
+          <section className="py-20 px-4 sm:px-6 max-w-5xl mx-auto">
+            <div className="text-center mb-16">
+              <p className="text-[#8B4D2A] text-xs font-heading font-extrabold tracking-[0.24em] uppercase mb-2">
+                THE JOURNEY
+              </p>
+              <h2 className="font-heading text-3xl md:text-4xl lg:text-5xl font-black text-[#2A1508]">
+                How We Built Celebration Cafe
+              </h2>
+            </div>
+
+            <div className="space-y-16">
+              {[
+                {
+                  chapter: "CHAPTER 01",
+                  year: "2018",
+                  title: "A Humble Corner with Big Dreams",
+                  description:
+                    "Celebration Food Cafe started as a cozy tea and snack nook in Hamirpur market. Driven by a simple vision — serving piping hot Masala Chai, freshly made samosas, and comforting sandwiches with genuine warmth.",
+                  image: "https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=800&h=500&fit=crop&auto=format&q=80",
+                },
+                {
+                  chapter: "CHAPTER 02",
+                  year: "2020",
+                  title: "Expanding Our Artisan Kitchen",
+                  description:
+                    "Listening to our growing cafe family, we expanded our kitchen menu to introduce handcrafted wood-fired pizzas, gourmet burgers, sizzling starters, and full Himachali & Indian thali platters.",
+                  image: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&h=500&fit=crop&auto=format&q=80",
+                },
+                {
+                  chapter: "CHAPTER 03",
+                  year: "PRESENT DAY",
+                  title: "Hamirpur’s Favorite Gathering Spot",
+                  description:
+                    "Today, Celebration Cafe is a vibrant community hub where students study over cold brews, families celebrate birthdays, and friends share laughter over memorable meals — online or in person.",
+                  image: "https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=800&h=500&fit=crop&auto=format&q=80",
+                },
+              ].map((item, idx) => (
+                <motion.div
+                  key={idx}
+                  initial={{ opacity: 0, y: 35 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-50px" }}
+                  transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                  className={`grid md:grid-cols-2 gap-8 items-center ${
+                    idx % 2 === 1 ? "md:grid-flow-dense" : ""
+                  }`}
+                >
+                  <div className={idx % 2 === 1 ? "md:col-start-2" : ""}>
+                    <div className="inline-flex items-center gap-2 text-[#C4622D] font-heading font-extrabold text-xs tracking-widest uppercase mb-2">
+                      <span className="px-3 py-1 rounded-full bg-[#C4622D]/15 border border-[#C4622D]/30">
+                        {item.chapter}
+                      </span>
+                      <span>· {item.year}</span>
+                    </div>
+                    <h3 className="font-heading text-2xl sm:text-3xl font-extrabold text-[#2A1508] mb-3 leading-snug">
+                      {item.title}
+                    </h3>
+                    <p className="text-[#6B4226] text-sm sm:text-base leading-relaxed font-medium">
+                      {item.description}
+                    </p>
+                  </div>
+
+                  <div className={`aspect-[4/3] rounded-3xl overflow-hidden bg-[#F5EFE6] border border-[#1F3B2C]/10 shadow-xl group ${
+                    idx % 2 === 1 ? "md:col-start-1" : ""
+                  }`}>
+                    <img
+                      src={item.image}
+                      alt={item.title}
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    />
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </section>
+
+          {/* 4. Bottom Call-To-Action Container */}
+          <section className="max-w-5xl mx-auto px-4 sm:px-6 mt-12">
+            <div className="bg-[#1F3B2C] text-[#F4E4C0] rounded-3xl p-10 lg:p-14 text-center shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-[#C4622D]/20 rounded-full filter blur-3xl pointer-events-none" />
+              <div className="relative z-10 max-w-xl mx-auto">
+                <p className="text-[#E8A93B] text-xs font-heading font-extrabold tracking-[0.24em] uppercase mb-2">
+                  JOIN OUR TABLE
+                </p>
+                <h3 className="font-heading text-3xl sm:text-4xl font-extrabold text-[#F4E4C0] mb-4">
+                  Taste the Tradition Today
+                </h3>
+                <p className="text-[#F4E4C0]/85 text-sm sm:text-base font-medium leading-relaxed mb-8">
+                  Dine in with us on Main Bazar Road or order online for direct delivery to your doorstep in Hamirpur.
+                </p>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    setPage("menu");
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  className="bg-[#C4622D] text-[#F4E4C0] font-heading font-extrabold text-sm tracking-wider uppercase px-8 py-3.5 rounded-full shadow-[0_6px_24px_rgba(196,98,45,0.42)] hover:brightness-110 transition flex items-center gap-2 mx-auto"
+                >
+                  <span>Explore Menu & Order</span>
+                  <span>→</span>
+                </motion.button>
+              </div>
+            </div>
+          </section>
+        </div>
       )}
 
       {/* ── MENU VIEW ── */}
+      {/* ── MENU VIEW ── */}
       {(page === "menu" || page === "home") && (
-        <section id="menu-section" className={`${page === "home" ? "pt-4" : "pt-24"} max-w-5xl mx-auto px-4`}>
-          <div className="text-center mb-6">
-            <p className="text-accent text-xs font-semibold tracking-[0.2em] uppercase mb-2">Fresh & Delicious</p>
-            <h2 className="font-heading text-3xl md:text-4xl font-bold text-foreground">Explore Our Menu</h2>
+        <section id="menu-section" className={`${page === "home" ? "pt-12" : "pt-28"} max-w-6xl mx-auto px-4 sm:px-6 pb-16`}>
+          <div className="text-center mb-10">
+            <p className="text-[#8B4D2A] text-xs font-heading font-extrabold tracking-[0.24em] uppercase mb-2">
+              Fresh & Authentic
+            </p>
+            <h2 className="font-heading text-4xl md:text-5xl font-black text-[#2A1508] tracking-tight">
+              Explore Our Menu
+            </h2>
+            <p className="text-[#6B4226]/85 text-sm md:text-base mt-2 max-w-lg mx-auto font-medium leading-relaxed">
+              Handcrafted delicacies prepared fresh daily with authentic spices and rich ingredients.
+            </p>
           </div>
 
-          {/* Search & Veg Filter */}
-          <div className="flex flex-col md:flex-row gap-3 items-center justify-between mb-6">
-            <div className="relative w-full md:w-80">
-              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          {/* Search Bar & Filter Controls */}
+          <div className="flex flex-col lg:flex-row gap-4 items-center justify-between mb-10">
+            {/* Search Input */}
+            <div className="relative w-full lg:w-80">
+              <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-[#8B4D2A]" />
               <input
                 type="text"
                 placeholder="Search dishes or beverages…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                className="w-full pl-11 pr-4 py-3 rounded-full border border-[#1F3B2C]/15 bg-[#FAF7F0] text-[#2A1508] placeholder-[#6B4226]/60 text-sm font-medium focus:outline-none focus:border-[#C4622D] focus:ring-2 focus:ring-[#C4622D]/20 shadow-sm transition-all"
               />
             </div>
 
-            <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1">
-              <button
+            {/* Filter Controls Bar */}
+            <div className="flex items-center gap-3 w-full lg:w-auto overflow-x-auto pb-2 no-scrollbar">
+              {/* Veg Only Toggle Pill */}
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => setVegOnly(!vegOnly)}
-                className={`px-4 py-2 rounded-xl text-xs font-semibold border flex items-center gap-2 transition ${vegOnly
-                    ? "bg-green-700 text-white border-green-700"
-                    : "bg-card text-foreground border-border hover:border-green-600"
-                  }`}
+                className={`px-4 py-2 rounded-full text-xs font-heading font-extrabold tracking-wider uppercase border flex items-center gap-2 transition-all shadow-xs whitespace-nowrap flex-shrink-0 ${
+                  vegOnly
+                    ? "bg-[#1F3B2C] text-[#F4E4C0] border-[#1F3B2C] shadow-md"
+                    : "bg-[#FAF7F0] text-[#2A1508] border-[#1F3B2C]/20 hover:border-[#1F3B2C]"
+                }`}
               >
-                <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
                 Veg Only
-              </button>
+              </motion.button>
 
-              {/* Category tabs */}
-              <button
-                onClick={() => setSelectedCategory("all")}
-                className={`px-4 py-2 rounded-xl text-xs font-medium border transition ${selectedCategory === "all"
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-card text-foreground border-border"
-                  }`}
+              {/* Category Filter Chips with AnimatedBackground */}
+              <AnimatedBackground
+                defaultValue={selectedCategory}
+                onValueChange={(val) => val && setSelectedCategory(val)}
+                className="bg-[#C4622D] shadow-md shadow-[#C4622D]/35 rounded-full"
+                transition={{
+                  type: "spring",
+                  bounce: 0.15,
+                  duration: 0.35,
+                }}
+                enableHover
               >
-                All
-              </button>
-
-              {categories.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategory(cat.name)}
-                  className={`px-4 py-2 rounded-xl text-xs font-medium border whitespace-nowrap transition ${selectedCategory === cat.name
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-card text-foreground border-border"
+                {[
+                  { id: "all", name: "All" },
+                  ...categories.map((c) => ({ id: c.name, name: c.name })),
+                ].map((cat) => (
+                  <motion.button
+                    key={cat.id}
+                    data-id={cat.id}
+                    type="button"
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setSelectedCategory(cat.id)}
+                    className={`px-4 py-2 text-xs font-heading font-extrabold tracking-wider uppercase whitespace-nowrap transition-colors duration-200 ${
+                      selectedCategory === cat.id ? "text-[#F4E4C0]" : "text-[#2A1508]/80 hover:text-[#2A1508]"
                     }`}
-                >
-                  {cat.name}
-                </button>
-              ))}
+                  >
+                    {cat.name}
+                  </motion.button>
+                ))}
+              </AnimatedBackground>
             </div>
           </div>
 
           {/* Menu Items Grid */}
           {loading ? (
-            <p className="text-center text-muted-foreground py-16">Loading menu items…</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+              {[1, 2, 3, 4].map((idx) => (
+                <div
+                  key={idx}
+                  className="relative bg-[#FAF7F0] rounded-3xl border border-[#1F3B2C]/10 p-5 shadow-sm flex items-center justify-between gap-5 overflow-hidden"
+                >
+                  <BorderTrail
+                    size={110}
+                    className="bg-gradient-to-r from-[#E8A93B] via-[#C4622D] to-[#E8A93B]"
+                    transition={{
+                      repeat: Infinity,
+                      duration: 2.5 + idx * 0.4,
+                      ease: "linear",
+                    }}
+                  />
+                  <div className="w-28 h-28 rounded-2xl bg-[#F5EFE6] animate-pulse flex-shrink-0" />
+                  <div className="flex-1 space-y-2.5">
+                    <div className="h-5 bg-[#F5EFE6] rounded-md w-3/4 animate-pulse" />
+                    <div className="h-3.5 bg-[#F5EFE6] rounded-md w-full animate-pulse" />
+                    <div className="h-4 bg-[#F5EFE6] rounded-md w-1/3 animate-pulse" />
+                  </div>
+                  <div className="w-20 h-9 rounded-full bg-[#F5EFE6] animate-pulse flex-shrink-0" />
+                </div>
+              ))}
+            </div>
           ) : filteredItems.length === 0 ? (
-            <div className="text-center text-muted-foreground py-16">
-              <p className="font-heading text-lg text-foreground">No dishes found</p>
-              <p className="text-sm mt-1">Try clearing filters or searching for something else.</p>
+            <div className="text-center text-[#6B4226] py-20 bg-[#FAF7F0] rounded-3xl border border-[#1F3B2C]/10 p-8 shadow-sm">
+              <p className="font-heading text-xl font-bold text-[#2A1508]">No dishes found</p>
+              <p className="text-sm mt-1 text-[#6B4226]/80">Try clearing your search query or selecting a different category.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: "-40px" }}
+              variants={{
+                hidden: { opacity: 0 },
+                visible: {
+                  opacity: 1,
+                  transition: { staggerChildren: 0.08 },
+                },
+              }}
+              className="grid grid-cols-1 md:grid-cols-2 gap-6"
+            >
               {filteredItems.map((item) => (
                 <motion.div
                   key={item.id}
-                  whileHover={{ scale: 1.01 }}
-                  className="bg-card rounded-2xl border border-border p-4 shadow-xs flex items-center justify-between gap-4"
+                  variants={{
+                    hidden: { opacity: 0, y: 25 },
+                    visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } },
+                  }}
+                  whileHover={{ y: -5, scale: 1.015 }}
+                  whileTap={{ scale: 0.96 }}
+                  transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                  onClick={() => setModalItem(item)}
+                  className="bg-[#FAF7F0] rounded-3xl border border-[#1F3B2C]/10 p-4 sm:p-5 shadow-md hover:shadow-2xl hover:border-[#C4622D]/40 transition-all duration-300 flex items-center justify-between gap-4 sm:gap-5 group cursor-pointer"
                 >
-                  <div className="w-24 h-24 rounded-xl bg-muted overflow-hidden flex-shrink-0 relative">
+                  {/* Item Image with Fallback & Gradient Overlay */}
+                  <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-[#F5EFE6] overflow-hidden flex-shrink-0 relative shadow-inner">
                     <ImageWithFallback
                       src={getItemPhoto(item)}
                       alt={item.name}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                     />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-60 group-hover:opacity-30 transition-opacity" />
                   </div>
 
+                  {/* Item Details */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <VegDot isVeg={item.is_veg} />
-                      <h3 className="font-heading text-base font-semibold text-foreground truncate">
+                      <h3 className="font-heading text-base sm:text-lg font-bold text-[#2A1508] truncate group-hover:text-[#C4622D] transition-colors">
                         {item.name}
                       </h3>
                     </div>
                     {item.description && (
-                      <p className="text-xs text-muted-foreground line-clamp-2 mb-2 leading-relaxed">
+                      <p className="text-xs sm:text-sm text-[#6B4226]/85 line-clamp-2 mb-2 leading-relaxed font-medium">
                         {item.description}
                       </p>
                     )}
-                    <p className="text-sm font-semibold text-primary">₹{item.price}</p>
+                    <p className="font-heading font-extrabold text-base sm:text-lg text-[#C4852A] tabular-nums">
+                      ₹{item.price}
+                    </p>
                   </div>
 
-                  <button
-                    onClick={() => setModalItem(item)}
-                    className="bg-accent text-accent-foreground px-4 py-2 rounded-xl font-medium text-xs hover:opacity-90 transition flex-shrink-0 shadow-xs"
+                  {/* Add Button Pill */}
+                  <motion.button
+                    whileHover={{ scale: 1.08 }}
+                    whileTap={{ scale: 0.94 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setModalItem(item);
+                    }}
+                    className="bg-[#C4622D] text-[#F4E4C0] font-heading font-extrabold text-xs tracking-wider uppercase px-4 sm:px-5 py-2.5 rounded-full hover:brightness-110 transition flex-shrink-0 shadow-[0_4px_16px_rgba(196,98,45,0.35)] flex items-center gap-1"
                   >
-                    Add +
-                  </button>
+                    <span>Add</span>
+                    <Plus className="w-3.5 h-3.5" />
+                  </motion.button>
                 </motion.div>
               ))}
-            </div>
+            </motion.div>
           )}
         </section>
       )}
