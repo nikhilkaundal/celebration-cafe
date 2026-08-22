@@ -41,6 +41,7 @@ import CustomerUserMenu from "@/components/CustomerUserMenu";
 import OfferBannerCarousel from "@/components/OfferBannerCarousel";
 import { ImageWithFallback } from "@/components/ImageWithFallback";
 import { LocationAddressSelector } from "@/components/LocationAddressSelector";
+import { AuthGateModal } from "@/components/AuthGateModal";
 
 // ── Types for Past Orders & Reordering ──────────────────────────────────────────
 
@@ -193,6 +194,48 @@ export default function OnlineOrderPage() {
 
   // Added animation micro-interaction state per item
   const [addedItemIds, setAddedItemIds] = useState<Record<string, boolean>>({});
+
+  // Auth Gate Modal state
+  const [authGateOpen, setAuthGateOpen] = useState(false);
+  const [pendingItemName, setPendingItemName] = useState<string | undefined>(undefined);
+
+  const triggerAddedAnimation = (id: string) => {
+    setAddedItemIds((prev) => ({ ...prev, [id]: true }));
+    setTimeout(() => {
+      setAddedItemIds((prev) => ({ ...prev, [id]: false }));
+    }, 1500);
+  };
+
+  const requireAuthOrGate = (
+    actionCallback: () => void,
+    pendingPayload?: {
+      item: any;
+      quantity?: number;
+      size?: string;
+      extras?: string[];
+      unitPrice?: number;
+      spiceLevel?: string;
+      notes?: string;
+    }
+  ) => {
+    if (isAuthenticatedCustomer) {
+      actionCallback();
+    } else {
+      if (pendingPayload) {
+        try {
+          localStorage.setItem(
+            "celebration_pending_cart_action",
+            JSON.stringify({
+              ...pendingPayload,
+              timestamp: Date.now(),
+            })
+          );
+          setPendingItemName(pendingPayload.item?.name);
+        } catch (e) {}
+      }
+      setAuthGateOpen(true);
+    }
+  };
 
   // Unified Customer Orders & Auth Sync
   const syncCustomerOrders = useCallback(async (activeSession?: any) => {
@@ -444,20 +487,25 @@ export default function OnlineOrderPage() {
       return;
     }
 
-    // Target the most recent cart line for this item
-    const targetLine = itemLines[itemLines.length - 1];
-    const key = getLineKey(
-      targetLine.item,
-      targetLine.size,
-      targetLine.extras,
-      targetLine.spiceLevel,
-      targetLine.notes
-    );
+    requireAuthOrGate(
+      () => {
+        // Target the most recent cart line for this item
+        const targetLine = itemLines[itemLines.length - 1];
+        const key = getLineKey(
+          targetLine.item,
+          targetLine.size,
+          targetLine.extras,
+          targetLine.spiceLevel,
+          targetLine.notes
+        );
 
-    const newQty = targetLine.quantity + 1;
-    updateQuantity(key, newQty);
-    triggerAddedAnimation(item.id);
-    toast.success(`Updated ${item.name} (${getItemCartQuantity(item.id) + 1} in cart)`);
+        const newQty = targetLine.quantity + 1;
+        updateQuantity(key, newQty);
+        triggerAddedAnimation(item.id);
+        toast.success(`Updated ${item.name} (${getItemCartQuantity(item.id) + 1} in cart)`);
+      },
+      { item, quantity: 1 }
+    );
   };
 
   // Handle decrement stepper on menu item card
@@ -515,17 +563,15 @@ export default function OnlineOrderPage() {
         setLoadingCustomizations(false);
       }
     } else {
-      triggerAddedAnimation(item.id);
-      addItem(item, 1);
-      toast.success(`Added ${item.name} to cart`);
+      requireAuthOrGate(
+        () => {
+          triggerAddedAnimation(item.id);
+          addItem(item, 1);
+          toast.success(`Added ${item.name} to cart`);
+        },
+        { item, quantity: 1 }
+      );
     }
-  };
-
-  const triggerAddedAnimation = (id: string) => {
-    setAddedItemIds((prev) => ({ ...prev, [id]: true }));
-    setTimeout(() => {
-      setAddedItemIds((prev) => ({ ...prev, [id]: false }));
-    }, 1500);
   };
 
   // Calculate live total inside modal
@@ -560,19 +606,31 @@ export default function OnlineOrderPage() {
       }
     });
 
-    addItem(
-      customizingItem,
-      modalQty,
-      undefined,
-      selectedExtras,
-      unitPrice,
-      selectedSpice,
-      notes.trim() ? notes.trim() : undefined
-    );
+    requireAuthOrGate(
+      () => {
+        addItem(
+          customizingItem,
+          modalQty,
+          undefined,
+          selectedExtras,
+          unitPrice,
+          selectedSpice,
+          notes.trim() ? notes.trim() : undefined
+        );
 
-    triggerAddedAnimation(customizingItem.id);
-    toast.success(`Added ${customizingItem.name} to cart`);
-    setCustomizingItem(null);
+        triggerAddedAnimation(customizingItem.id);
+        toast.success(`Added ${customizingItem.name} to cart`);
+        setCustomizingItem(null);
+      },
+      {
+        item: customizingItem,
+        quantity: modalQty,
+        extras: selectedExtras,
+        unitPrice,
+        spiceLevel: selectedSpice,
+        notes: notes.trim() ? notes.trim() : undefined,
+      }
+    );
   };
 
   const toggleExtra = (extraName: string) => {
@@ -1474,10 +1532,38 @@ export default function OnlineOrderPage() {
         )}
       </AnimatePresence>
 
-      {/* ── Mobile Cart Drawer ── */}
+      {/* ── Sticky Mobile Floating Cart Bar ── */}
+      {itemCount > 0 && !cartDrawerOpen && (
+        <motion.div
+          initial={{ y: 80, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 80, opacity: 0 }}
+          className="fixed bottom-4 left-4 right-4 z-40 md:hidden bg-[#121110]/95 border border-marigold/40 text-stone backdrop-blur-xl p-3.5 rounded-2xl shadow-2xl flex items-center justify-between cursor-pointer"
+          onClick={() => setCartDrawerOpen(true)}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-marigold text-pineDark font-extrabold flex items-center justify-center text-sm shadow-md">
+              {itemCount}
+            </div>
+            <div>
+              <p className="text-xs font-bold text-stone">View Cart</p>
+              <p className="text-[10px] text-marigold font-semibold">
+                {itemCount} {itemCount === 1 ? "item" : "items"} · ₹{total}
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-marigold text-pineDark font-extrabold text-xs px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-md">
+            <span>Checkout</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── Mobile & Desktop Cart Drawer ── */}
       <AnimatePresence>
         {cartDrawerOpen && (
-          <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="fixed inset-0 z-50 flex items-end md:items-stretch md:justify-end">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1486,11 +1572,11 @@ export default function OnlineOrderPage() {
               onClick={() => setCartDrawerOpen(false)}
             />
             <motion.div
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="relative z-10 bg-pine text-stone border-l border-white/15 w-full max-w-sm h-full flex flex-col justify-between shadow-2xl p-6"
+              className="relative z-10 bg-pine text-stone border-t md:border-l border-white/15 w-full md:max-w-sm max-h-[85vh] md:max-h-full h-auto md:h-full rounded-t-3xl md:rounded-none flex flex-col justify-between shadow-2xl p-5 md:p-6"
             >
               <div>
                 <div className="flex items-center justify-between border-b border-white/15 pb-4 mb-4">
@@ -1508,7 +1594,7 @@ export default function OnlineOrderPage() {
                     <p className="text-xs text-stone/60">Your cart is empty.</p>
                   </div>
                 ) : (
-                  <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+                  <div className="space-y-4 max-h-[50vh] md:max-h-[60vh] overflow-y-auto pr-1">
                     {lines.map((l) => {
                       const key = getLineKey(l.item, l.size, l.extras, l.spiceLevel, l.notes);
                       const uPrice = l.unitPrice ?? l.item.price;
@@ -1545,14 +1631,14 @@ export default function OnlineOrderPage() {
                             <div className="flex items-center gap-2 bg-white/10 rounded-xl px-2 py-0.5 font-bold">
                               <button
                                 onClick={() => updateQuantity(key, l.quantity - 1)}
-                                className="p-0.5 text-stone hover:text-white cursor-pointer"
+                                className="p-1 text-stone hover:text-white cursor-pointer min-w-[28px] min-h-[28px] flex items-center justify-center"
                               >
                                 -
                               </button>
                               <span className="font-bold text-marigold">{l.quantity}</span>
                               <button
                                 onClick={() => updateQuantity(key, l.quantity + 1)}
-                                className="p-0.5 text-stone hover:text-white cursor-pointer"
+                                className="p-1 text-stone hover:text-white cursor-pointer min-w-[28px] min-h-[28px] flex items-center justify-center"
                               >
                                 +
                               </button>
@@ -1594,6 +1680,12 @@ export default function OnlineOrderPage() {
           </div>
         )}
       </AnimatePresence>
+
+      <AuthGateModal
+        isOpen={authGateOpen}
+        onClose={() => setAuthGateOpen(false)}
+        pendingItemName={pendingItemName}
+      />
     </div>
   );
 }

@@ -3,6 +3,8 @@ import { Fraunces, Inter } from "next/font/google";
 import "./globals.css";
 import { CartProvider } from "@/lib/cart-context";
 import { Toaster } from "sonner";
+import { Analytics } from "@vercel/analytics/next";
+import { LenisProvider } from "@/components/LenisProvider";
 
 const fraunces = Fraunces({
   subsets: ["latin"],
@@ -36,10 +38,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="font-body">
-        <CartProvider>
-          {children}
-          <Toaster position="top-center" richColors />
-        </CartProvider>
+        <LenisProvider>
+          <CartProvider>
+            {children}
+            <Toaster position="top-center" richColors />
+            <Analytics />
+          </CartProvider>
+        </LenisProvider>
       </body>
     </html>
   );

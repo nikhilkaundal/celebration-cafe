@@ -46,10 +46,14 @@ export async function POST(req: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
 
-    // Call Postgres function place_order via supabaseAdmin or user RPC
-    const clientToUse = user ? supabase : supabaseAdmin;
+    if (!user) {
+      return NextResponse.json(
+        { error: "Authentication required to place orders. Please sign in or register." },
+        { status: 401 }
+      );
+    }
 
-    const { data: orderId, error: rpcError } = await clientToUse.rpc("place_order", {
+    const { data: orderId, error: rpcError } = await supabase.rpc("place_order", {
       p_items: items,
       p_order_type: orderType,
       p_customer_name: customerName.trim(),
