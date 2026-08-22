@@ -18,6 +18,10 @@ import {
   X,
   CreditCard,
   Plus,
+  Minus,
+  Trash2,
+  Copy,
+  Check,
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -27,12 +31,15 @@ import { supabase, type OrderType, type Address } from "@/lib/supabase";
 import { AddressModal, type AddressData } from "@/components/AddressModal";
 
 export default function CheckoutPage() {
-  const { lines, total, clearCart } = useCart();
+  const { lines, total, clearCart, updateQuantity, removeItem } = useCart();
   const router = useRouter();
 
   const [orderType, setOrderType] = useState<OrderType>("dine-in");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [paymentQrUrl, setPaymentQrUrl] = useState<string | null>(null);
+  const [upiId, setUpiId] = useState<string>("celebrationcafe@upi");
+  const [copiedUpi, setCopiedUpi] = useState(false);
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -165,9 +172,57 @@ export default function CheckoutPage() {
       }
     }
 
+    async function fetchPublicSettings() {
+      try {
+        const res = await fetch("/api/settings/public");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.settings) {
+            if (data.settings.payment_qr_url) setPaymentQrUrl(data.settings.payment_qr_url);
+            if (data.settings.upi_id) setUpiId(data.settings.upi_id);
+          }
+        }
+      } catch (e) {
+        console.warn("Error fetching public settings:", e);
+      }
+    }
+
     loadCustomerData();
     loadAvailableCoupons();
+    fetchPublicSettings();
   }, []);
+
+  // Re-validate applied coupon whenever cart subtotal changes
+  useEffect(() => {
+    if (!appliedCoupon) return;
+
+    const currentCoupon = availableCoupons.find(
+      (c) => c.code.toUpperCase() === appliedCoupon.code.toUpperCase()
+    );
+
+    if (currentCoupon) {
+      const minVal = Number(currentCoupon.min_order_value || 0);
+      if (total < minVal) {
+        const removedCode = appliedCoupon.code;
+        setAppliedCoupon(null);
+        toast.info(
+          `Coupon "${removedCode}" removed because order subtotal (₹${total}) fell below minimum required ₹${minVal}`
+        );
+      } else {
+        let newDiscount = 0;
+        if (currentCoupon.discount_type === "flat") {
+          newDiscount = Math.min(Number(currentCoupon.value), total);
+        } else {
+          newDiscount = Math.round((total * Number(currentCoupon.value)) / 100);
+          if (currentCoupon.max_discount) {
+            newDiscount = Math.min(newDiscount, Number(currentCoupon.max_discount));
+          }
+        }
+        newDiscount = Math.min(newDiscount, total);
+        setAppliedCoupon((prev) => (prev ? { ...prev, discount: newDiscount } : null));
+      }
+    }
+  }, [total, availableCoupons]);
 
   const deliveryFee = orderType === "delivery" ? 40 : 0;
   const discountAmount = appliedCoupon ? appliedCoupon.discount : 0;
@@ -330,22 +385,79 @@ export default function CheckoutPage() {
         </h2>
 
         {lines.map((l) => {
-          const key = getLineKey(l.item, l.size, l.extras);
+          const key = getLineKey(l.item, l.size, l.extras, l.spiceLevel, l.notes);
           const uPrice = l.unitPrice ?? l.item.price;
           const sub = l.subtotal ?? uPrice * l.quantity;
 
           return (
-            <div key={key} className="flex justify-between items-start text-sm py-1.5 border-b border-border/30 last:border-0">
-              <div>
-                <p className="font-medium text-foreground">
-                  {l.quantity} × {l.item.name}
-                </p>
-                {l.size && <p className="text-xs text-muted-foreground">Size: {l.size}</p>}
-                {l.extras && l.extras.length > 0 && (
-                  <p className="text-xs text-muted-foreground">+ {l.extras.join(", ")}</p>
+            <div
+              key={key}
+              className="flex items-center justify-between gap-3 text-sm py-2 border-b border-border/30 last:border-0"
+            >
+              <div className="min-w-0 flex-1 space-y-0.5">
+                <p className="font-semibold text-foreground truncate">{l.item.name}</p>
+                {(l.size || (l.extras && l.extras.length > 0) || l.spiceLevel || l.notes) && (
+                  <p className="text-[11px] text-muted-foreground leading-tight">
+                    {[
+                      l.size,
+                      l.spiceLevel ? `Spice: ${l.spiceLevel}` : null,
+                      l.extras && l.extras.length > 0 ? l.extras.join(", ") : null,
+                      l.notes ? `"${l.notes}"` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
                 )}
+                <p className="text-xs text-muted-foreground font-mono">₹{uPrice} each</p>
               </div>
-              <span className="font-semibold text-foreground tabular-nums">₹{sub}</span>
+
+              {/* Quantity Stepper & Remove Action */}
+              <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-1.5 bg-muted/60 rounded-xl px-2 py-1 border border-border">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (l.quantity > 1) {
+                        updateQuantity(key, l.quantity - 1);
+                      } else {
+                        removeItem(key);
+                        toast.info(`Removed "${l.item.name}" from order`);
+                      }
+                    }}
+                    className="w-7 h-7 rounded-lg bg-background hover:bg-muted text-foreground flex items-center justify-center font-bold text-sm transition cursor-pointer border border-border"
+                  >
+                    <Minus className="w-3.5 h-3.5" />
+                  </button>
+
+                  <span className="font-bold text-foreground tabular-nums w-4 text-center text-xs">
+                    {l.quantity}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => updateQuantity(key, l.quantity + 1)}
+                    className="w-7 h-7 rounded-lg bg-background hover:bg-muted text-foreground flex items-center justify-center font-bold text-sm transition cursor-pointer border border-border"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <span className="font-bold text-foreground tabular-nums text-sm min-w-[50px] text-right">
+                  ₹{sub}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    removeItem(key);
+                    toast.info(`Removed "${l.item.name}" from order`);
+                  }}
+                  className="p-1.5 text-muted-foreground/60 hover:text-destructive transition cursor-pointer"
+                  title="Remove item"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           );
         })}
@@ -722,21 +834,46 @@ export default function CheckoutPage() {
                 </button>
               </div>
 
-              {/* Static QR Placeholder Image / Info */}
+              {/* Dynamic Payment QR Image / Info */}
               <div className="bg-background p-4 rounded-2xl border border-border space-y-3">
-                <div className="w-48 h-48 bg-white border border-gray-300 rounded-xl mx-auto flex items-center justify-center shadow-inner relative overflow-hidden">
-                  {/* Styled QR Code Box */}
-                  <div className="text-center space-y-1 p-2">
-                    <QrCode className="w-24 h-24 text-primary mx-auto" />
-                    <p className="text-[11px] font-mono font-bold text-foreground">Scan with GPay / PhonePe</p>
+                {paymentQrUrl ? (
+                  <div className="w-52 h-52 bg-white border border-gray-300 rounded-2xl mx-auto p-2 shadow-inner relative overflow-hidden flex items-center justify-center">
+                    <img
+                      src={paymentQrUrl}
+                      alt="Owner Payment QR Code"
+                      className="w-full h-full object-contain"
+                    />
                   </div>
-                </div>
+                ) : (
+                  <div className="w-52 h-52 bg-muted/30 border border-dashed border-border rounded-2xl mx-auto p-4 flex flex-col items-center justify-center text-center space-y-2">
+                    <QrCode className="w-12 h-12 text-primary/40" />
+                    <p className="text-xs font-bold text-foreground">UPI Payment QR</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      Scan via GPay / PhonePe / Paytm. Pay ₹{finalTotal}
+                    </p>
+                  </div>
+                )}
 
-                <div className="space-y-1 text-xs">
-                  <p className="text-muted-foreground">UPI ID:</p>
-                  <p className="font-mono font-bold text-primary bg-muted py-1 px-3 rounded-lg inline-block">
-                    celebrationcafe@upi
-                  </p>
+                <div className="space-y-1.5 pt-1">
+                  <p className="text-xs text-muted-foreground font-semibold">Official Cafe UPI ID:</p>
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="font-mono font-extrabold text-primary bg-primary/10 border border-primary/20 py-1.5 px-3 rounded-xl text-xs select-all">
+                      {upiId}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(upiId);
+                        setCopiedUpi(true);
+                        toast.success(`Copied UPI ID "${upiId}"!`);
+                        setTimeout(() => setCopiedUpi(false), 2500);
+                      }}
+                      className="bg-primary text-primary-foreground p-2 rounded-xl hover:opacity-90 transition cursor-pointer flex items-center justify-center shadow-xs"
+                      title="Copy UPI ID"
+                    >
+                      {copiedUpi ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
               </div>
 

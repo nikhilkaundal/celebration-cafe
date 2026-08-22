@@ -19,6 +19,7 @@ import {
   FileText,
   Sliders,
   Ticket,
+  QrCode,
 } from "lucide-react";
 import { supabase, type Profile, type UserRole } from "@/lib/supabase";
 
@@ -133,6 +134,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       name: "Offers & Banners",
       href: "/admin/offers",
       icon: Tag,
+      allowedRoles: ["owner"],
+    },
+    {
+      name: "Payment & Settings",
+      href: "/admin/settings",
+      icon: QrCode,
       allowedRoles: ["owner"],
     },
     {
