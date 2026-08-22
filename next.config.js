@@ -7,6 +7,10 @@ const nextConfig = {
       { protocol: "https", hostname: "*.googleusercontent.com" },
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
       { protocol: "https", hostname: "avatars.githubusercontent.com" },
+      { protocol: "https", hostname: "cdn.uengage.io" },
+      { protocol: "https", hostname: "*.uengage.io" },
+      { protocol: "https", hostname: "*.tile.openstreetmap.org" },
+      { protocol: "https", hostname: "unpkg.com" },
     ],
   },
 
@@ -38,7 +42,7 @@ const nextConfig = {
           {
             key: "Content-Security-Policy",
             value:
-              "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://images.unsplash.com https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://images.unsplash.com;",
+              "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://va.vercel-scripts.com https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://images.unsplash.com https://va.vercel-scripts.com https://*.tile.openstreetmap.org https://cdn.uengage.io https://*.uengage.io;",
           },
         ],
       },

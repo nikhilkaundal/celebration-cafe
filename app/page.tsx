@@ -27,6 +27,7 @@ import CustomerUserMenu from "@/components/CustomerUserMenu";
 import { LocationAddressSelector } from "@/components/LocationAddressSelector";
 import AnimatedBackground from "@/components/ui/animated-background";
 import { BorderTrail } from "@/components/ui/border-trail";
+import Footer from "@/components/Footer";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1415,42 +1416,7 @@ export default function MenuPage() {
       )}
 
       {/* Footer */}
-      <footer className="border-t border-border bg-card mt-20">
-        <div className="max-w-6xl mx-auto px-6 py-12">
-          <div className="grid md:grid-cols-3 gap-8 text-sm">
-            <div>
-              <img
-                src="/images/logos/logo.svg"
-                alt="Celebration Food Cafe"
-                className="h-10 w-auto object-contain mb-3"
-              />
-              <p className="text-muted-foreground leading-relaxed">
-                Celebration Food Cafe. Hamirpur's favourite cafe serving fresh pizza, burgers, thalis, teas, and sweets.
-              </p>
-            </div>
-            <div>
-              <p className="font-semibold text-foreground mb-3">Address & Hours</p>
-              <p className="flex items-start gap-2 text-muted-foreground mb-2">
-                <MapPin className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
-                Main Bazar Road, Hamirpur, Himachal Pradesh 177001
-              </p>
-              <p className="flex items-center gap-2 text-muted-foreground">
-                <Clock className="w-4 h-4 text-accent flex-shrink-0" />
-                Open Daily: 9:00 AM – 10:00 PM
-              </p>
-            </div>
-            <div>
-              <p className="font-semibold text-foreground mb-3">Order Online</p>
-              <p className="text-muted-foreground mb-3">
-                Order for dine-in, pickup, or home delivery directly through our web app.
-              </p>
-              <p className="text-xs text-muted-foreground">
-                © {new Date().getFullYear()} Celebration Food Cafe. All rights reserved.
-              </p>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <Footer onNavigate={setPage} />
     </main>
   );
 }
